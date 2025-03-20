@@ -32,6 +32,7 @@ import {
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, UserPlusIcon } from "@heroicons/react/24/solid";
 import { useHistory } from "react-router-dom";
+import axios from "axios";
 
 const TABS = [
   { label: "All", value: "all" },
@@ -40,6 +41,7 @@ const TABS = [
 ];
 
 const MaterialReplenishment = () => {
+  const user = JSON.parse(localStorage.getItem("user")) ? JSON.parse(localStorage.getItem("user")) : JSON.parse(sessionStorage.getItem("user"));
   const [tableData, setTableData] = useState([
     {
       id: 1,
@@ -92,6 +94,23 @@ const MaterialReplenishment = () => {
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
+
+    const fetchData = async () => {
+      try {
+        const response = await axios.post("http://localhost:8000/api/material-replenishment/get-data",{"email":user.email}, {
+          withCredentials: true, // If your API requires authentication cookies
+        });
+
+
+        setTableData(response.data);
+        setFilteredData(response.data); // Set filtered data to match initial data
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchData();
+
     if (searchInputRef.current) {
       setIsFocused(searchInputRef.current === document.activeElement);
     }
@@ -111,7 +130,7 @@ const MaterialReplenishment = () => {
     }
   };
 
-  const handleSaveRow = () => {
+  const handleSaveRow = async() => {
     if (selectedRowId) {
       const updatedTableData = tableData.map((row) =>
         row.id === selectedRowId ? { ...row, ...newRow } : row
@@ -137,6 +156,17 @@ const MaterialReplenishment = () => {
       createTime: "",
       updateTime: "",
     });
+
+    try
+    {
+      const response = await axios.post("http://localhost:8000/api/material-replenishment/add-data",[newRow,{"user":user.email}],{
+        withCredentials : true
+      })
+    }
+    catch(err)
+    {
+      console.log(err);
+    }
   };
 
   const navigate = useHistory();
@@ -294,16 +324,16 @@ const MaterialReplenishment = () => {
               {filteredData.map((row) => (
                 <Tr key={row.id}>
                   <Td>{row.id}</Td>
-                  <Td>{row.orderNumber}</Td>
-                  <Td>{row.materialCategory}</Td>
-                  <Td>{row.vendor}</Td>
-                  <Td>{row.invitee}</Td>
-                  <Td>{row.hostInviterContactInfo}</Td>
-                  <Td>{row.sender}</Td>
-                  <Td>{row.status}</Td>
-                  <Td>{row.supplementTemplate}</Td>
-                  <Td>{row.createTime}</Td>
-                  <Td>{row.updateTime}</Td>
+                  <Td>{row.OrderNumber}</Td>
+                  <Td>{row.MaterialCategory}</Td>
+                  <Td>{row.Vendor}</Td>
+                  <Td>{row.Invitee}</Td>
+                  <Td>{row.Host}</Td>
+                  <Td>{row.Sender}</Td>
+                  <Td>{row.Status}</Td>
+                  <Td>{row.SupplementTemplate}</Td>
+                  <Td>{row.Created}</Td>
+                  <Td>{row.updated}</Td>
                   <Td>
                     <Tooltip label="Edit">
                       <IconButton

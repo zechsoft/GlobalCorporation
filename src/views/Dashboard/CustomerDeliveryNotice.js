@@ -36,6 +36,7 @@ import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, UserPlusIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useHistory } from "react-router-dom";
 import { customerDeliveryNoticeApi } from "./services/customerDeliveryNoticeAPI";
+import axios from "axios";
 
 const TABS = [
   { label: "All", value: "all" },
@@ -44,6 +45,7 @@ const TABS = [
 ];
 
 const CustomerDeliveryNotice = () => {
+  const user = JSON.parse(localStorage.getItem("user")) ? JSON.parse(localStorage.getItem("user")) : JSON.parse(sessionStorage.getItem("user"));
   const [tableData, setTableData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -158,7 +160,7 @@ const CustomerDeliveryNotice = () => {
     setCurrentPage(1);
   };
 
-  const handleAddRow = () => {
+  const handleAddRow = async() => {
     setIsModalOpen(true);
     setSelectedRowId(null);
     setNewRow({
@@ -172,6 +174,17 @@ const CustomerDeliveryNotice = () => {
       supplementTemplate: "",
       isMonitored: false,
     });
+
+    try
+    {
+      const response = await axios.post("http://localhost:8000/api/customerdelivery/add-data",[newRow,{"user":user.email}],{
+        withCredentials : true
+      })
+    }
+    catch(err)
+    {
+      console.log(err);
+    }
   };
 
   const handleEditRow = (rowId) => {

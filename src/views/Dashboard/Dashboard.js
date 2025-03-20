@@ -24,6 +24,7 @@ import IconBox from "components/Icons/IconBox";
 import { React, useState, useEffect } from 'react';
 import { useHistory, useLocation } from 'react-router-dom';
 import { motion } from "framer-motion"; // Importing motion for animations
+import axios from "axios";
 
 // Custom icons
 import {
@@ -51,6 +52,7 @@ export default function Dashboard() {
   
   // Determine if we're in admin or client mode based on the current path
   const [userType, setUserType] = useState('');
+  const [dailyData,setDailyData] = useState([]);
   
   useEffect(() => {
     // Extract the base path (admin or client) from the current location
@@ -58,6 +60,17 @@ export default function Dashboard() {
     const basePath = pathParts[1]; // Will be 'admin' or 'client'
     setUserType(basePath);
   }, [location]);
+
+  useEffect(() => {
+    const getData = async() => {
+      const response = await axios.get("http://localhost:8000/api/dailywork/get-all");
+
+      setDailyData(response.data.data);
+      console.log(response.data.data);
+    }
+
+    getData();
+  },[])
 
   // Unified navigation function that handles both admin and client routes
   const navigateTo = (page) => {
@@ -600,28 +613,28 @@ export default function Dashboard() {
                           backgroundColor: "blue",
                         }}
                       />
-                      Charges
+                      Supervisor Name
                     </Th>
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {dailyWorkData.map((el, index, arr) => (
+                  {dailyData.map((el, index, arr) => (
                     <Tr
                       key={index}
                       _hover={{ bg: "blue.50" }} // Hover effect for rows
                       transition="background-color 0.3s ease"
                     >
                       <Td color={textTableColor} fontSize="sm" fontWeight="bold" borderColor={borderColor} border={index === arr.length - 1 ? "none" : null}>
-                        {el.natureOfWork}
+                        {el.NatureofWork}
                       </Td>
                       <Td color={textTableColor} fontSize="sm" borderColor={borderColor} border={index === arr.length - 1 ? "none" : null}>
-                        {el.progress}
+                        {el.Progress}
                       </Td>
                       <Td color={textTableColor} fontSize="sm" borderColor={borderColor} border={index === arr.length - 1 ? "none" : null}>
-                        {el.hoursOfWork}
+                        {el.HourofWork}
                       </Td>
                       <Td color={textTableColor} fontSize="sm" borderColor={borderColor} border={index === arr.length - 1 ? "none" : null}>
-                        {el.charges}
+                        {el.SupervisorName}
                       </Td>
                     </Tr>
                   ))}

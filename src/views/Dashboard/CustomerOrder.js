@@ -32,6 +32,7 @@ import {
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, UserPlusIcon } from "@heroicons/react/24/solid";
 import { useHistory } from "react-router-dom";
+import axios from "axios";
 
 const TABS = [
   { label: "All", value: "all" },
@@ -79,6 +80,7 @@ const CustomerOrder = () => {
     },
   ]);
 
+  const user = JSON.parse(localStorage.getItem("user")) ? JSON.parse(localStorage.getItem("user")) : JSON.parse(sessionStorage.getItem("user"));
   const [filteredData, setFilteredData] = useState(tableData); // New state for filtered data
   const [searchTerm, setSearchTerm] = useState("");
   const [country, setCountry] = useState("All");
@@ -107,6 +109,24 @@ const CustomerOrder = () => {
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
+
+    const fetchData = async () => {
+      try {
+        const response = await axios.post("http://localhost:8000/api/customer/get-data",{"email":user.email}, {
+          withCredentials: true, // If your API requires authentication cookies
+        });
+
+        console.log(response);
+  
+        setTableData(response.data);
+        setFilteredData(response.data); // Set filtered data to match initial data
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchData();
+
     if (searchInputRef.current) {
       setIsFocused(searchInputRef.current === document.activeElement);
     }
@@ -126,7 +146,7 @@ const CustomerOrder = () => {
     }
   };
 
-  const handleSaveRow = () => {
+  const handleSaveRow = async() => {
     if (selectedRowId) {
       const updatedTableData = tableData.map((row) =>
         row.id === selectedRowId ? { ...row, ...newRow } : row
@@ -157,6 +177,17 @@ const CustomerOrder = () => {
       acceptanceStatus: "",
       statementStatus: "",
     });
+
+    try
+    {
+      const response = await axios.post("http://localhost:8000/api/customer/add-data",[newRow,{"user":user.email}],{
+        withCredentials : true
+      })
+    }
+    catch(err)
+    {
+      console.log(err);
+    }
   };
 
   const navigate = useHistory();

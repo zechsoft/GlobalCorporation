@@ -32,6 +32,7 @@ import {
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, UserPlusIcon } from "@heroicons/react/24/solid";
 import { useHistory } from "react-router-dom";
+import axios from "axios";
 
 const TABS = [
   { label: "All", value: "all" },
@@ -40,6 +41,7 @@ const TABS = [
 ];
 
 const DailyWorkReport = () => {
+  const user = JSON.parse(localStorage.getItem("user")) ? JSON.parse(localStorage.getItem("user")) : JSON.parse(sessionStorage.getItem("user"));
   const [tableData, setTableData] = useState([
     {
       id: 1,
@@ -95,6 +97,22 @@ const DailyWorkReport = () => {
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
+
+    const fetchData = async () => {
+      try {
+        const response = await axios.post("http://localhost:8000/api/dailywork/get-data",{"email":user.email}, {
+          withCredentials: true, // If your API requires authentication cookies
+        });
+
+
+        setTableData(response.data);
+        setFilteredData(response.data); // Set filtered data to match initial data
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchData();
     if (searchInputRef.current) {
       setIsFocused(searchInputRef.current === document.activeElement);
     }
@@ -114,7 +132,7 @@ const DailyWorkReport = () => {
     }
   };
 
-  const handleSaveRow = () => {
+  const handleSaveRow = async() => {
     if (selectedRowId) {
       const updatedTableData = tableData.map((row) =>
         row.id === selectedRowId ? { ...row, ...newRow } : row
@@ -141,6 +159,17 @@ const DailyWorkReport = () => {
       charges: "",
       date: "",
     });
+
+    try
+    {
+      const response = await axios.post("http://localhost:8000/api/dailywork/add-data",[newRow,{"user":user.email}],{
+        withCredentials : true
+      })
+    }
+    catch(err)
+    {
+      console.log(err);
+    }
   };
 
   const navigate = useHistory();
@@ -269,17 +298,17 @@ const DailyWorkReport = () => {
             {filteredData.map((row) => (
               <Tr key={row.id}>
                 <Td>{row.id}</Td>
-                <Td>{row.companyName}</Td>
-                <Td>{row.projectName}</Td>
-                <Td>{row.supervisorName}</Td>
-                <Td>{row.managerName}</Td>
-                <Td>{row.prepaidBy}</Td>
-                <Td>{row.employees}</Td>
-                <Td>{row.workType}</Td>
-                <Td>{row.progress}</Td>
-                <Td>{row.hours}</Td>
-                <Td>{row.charges}</Td>
-                <Td>{row.date}</Td>
+                <Td>{row.CompanyName}</Td>
+                <Td>{row.ProjectName}</Td>
+                <Td>{row.SupervisorName}</Td>
+                <Td>{row.ManagerName}</Td>
+                <Td>{row.PrepaidBy}</Td>
+                <Td>{row.Employee}</Td>
+                <Td>{row.NatureofWork}</Td>
+                <Td>{row.Progress}</Td>
+                <Td>{row.HourofWork}</Td>
+                <Td>{row.Charges}</Td>
+                <Td>{row.Date}</Td>
                 <Td>
                   <Tooltip label="Edit">
                     <IconButton
