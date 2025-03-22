@@ -23,6 +23,7 @@ import {
 import { FcGoogle } from "react-icons/fc";
 import { motion } from "framer-motion";
 import { useHistory } from "react-router-dom";
+import axios from "axios";
 
 // Default avatars for new users
 import avatar1 from "assets/img/avatars/avatar1.png";
@@ -173,7 +174,7 @@ function SignUp() {
     }, 1000);
   };
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async() => {
     if (!email) {
       toast({
         title: "Missing email",
@@ -186,13 +187,42 @@ function SignUp() {
     }
 
     // Simulate OTP sending
-    toast({
-      title: "OTP Sent",
-      description: "An OTP has been sent to your email address",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
+
+    try
+    {
+      const response = await axios.post("http://localhost:8000/api/sendotp")
+
+      if(response.status === 200)
+      {
+        toast({
+          title: "OTP Sent",
+          description: "An OTP has been sent to your email address",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+      else
+      {
+        toast({
+          title: "OTP failed",
+          description: "There has been a minor inconvenience",
+          status: "fail",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    }catch(err)
+    {
+      toast({
+        title: "OTP failed",
+        description: "There has been a minor inconvenience",
+        status: "fail",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+
   };
 
   // Animation variants
