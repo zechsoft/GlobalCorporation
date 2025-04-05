@@ -392,37 +392,27 @@ export default function HeaderLinks(props) {
 
   // Handle sign up logic
   const handleSignUp = async () => {
+
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, {
+      const response = await axios.post("http://localhost:8000/api/super-register", {
         name: signUpCredentials.name,
         email: signUpCredentials.email,
         password: signUpCredentials.password,
         role: signUpCredentials.role
-      });
+      },{withCredentials:true});
 
-      const { token, user } = response.data;
-      
-      // Set auth token for future requests
-      setAuthToken(token);
+      const user = response.data;
       
       // Create a user object with avatar
       const userData = {
-        id: user.id,
         name: signUpCredentials.name,
         email: signUpCredentials.email,
-        role: user.role,
+        role: signUpCredentials.role,
         avatar: defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)]
       };
-
-      // Store token and user data in localStorage
-      localStorage.setItem("token", token);
-      localStorage.setItem("userData", JSON.stringify(userData));
       
       // Remember this account for future logins
       saveAccountToRemembered(userData, signUpCredentials.password, true);
-      
-      setCurrentUser(userData);
-      setIsLoggedIn(true);
       
       toast({
         title: "Registration Successful",
@@ -432,10 +422,12 @@ export default function HeaderLinks(props) {
         isClosable: true,
       });
 
-      redirectToUserDashboard(userData);
+      // redirectToUserDashboard(userData);
       closeSignUpModal();
       
     } catch (error) {
+
+      console.log("Error -> ",error);
       toast({
         title: "Registration failed",
         description: error.response?.data?.msg || "Registration failed",
@@ -523,7 +515,6 @@ export default function HeaderLinks(props) {
 
   // We'll use Chakra UI's responsive utilities for different views
   const isMobile = useBreakpointValue({ base: true, md: false });
-  console.log(rememberedAccounts.length)
   
   return (
     <Flex

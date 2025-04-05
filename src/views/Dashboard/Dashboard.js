@@ -61,15 +61,12 @@ export default function Dashboard() {
     
     if(userData === null || userData === undefined)
     {
-      console.log("yes local is hit");
       userData = JSON.parse(sessionStorage.getItem("user"));
     }
 
-    console.log("In dash user -> ",userData)
 
     if(userData && userData.role)
     {
-      console.log("Yes all set");
       setUserType(userData.role);
       // return;
     }

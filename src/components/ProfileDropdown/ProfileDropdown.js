@@ -28,7 +28,12 @@ const ProfileDropdown = () => {
   
   // Get user data from localStorage or sessionStorage
   const getUserData = () => {
-    const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+    var storedUser = localStorage.getItem("user");
+
+    if(!storedUser)
+    {
+      storedUser = sessionStorage.getItem("user");
+    }
     return storedUser ? JSON.parse(storedUser) : null;
   };
   
@@ -76,7 +81,8 @@ const ProfileDropdown = () => {
             color="#fff"
             fontWeight="medium"
           >
-           {userData?.role === "client" ? "Client 1" : userData?.username || "Profile"}
+           {/* {userData?.role === "client" ? "Client 1" : userData?.username || "Profile"} */}
+           {userData.name}
 
           </Text>
         </Flex>
