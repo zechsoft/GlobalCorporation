@@ -85,7 +85,7 @@ function SignUp() {
     };
   }, []);
 
-  const handleSignUp = () => {
+  const handleSignUp = async() => {
     setIsLoading(true);
 
     // Simple validation
@@ -128,50 +128,109 @@ function SignUp() {
       return;
     }
 
-    // Get existing registered users or initialize empty array
-    const existingUsers = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
-
-    // Randomly assign an avatar from default avatars
-    const randomAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
-
-    // Create new user object
-    const newUser = {
-      name,
-      email,
-      password,
-      role,
-      avatar: randomAvatar,
-    };
-
-    // Add to registered users
-    existingUsers.push(newUser);
-    localStorage.setItem("registeredUsers", JSON.stringify(existingUsers));
-
-    // Create user auth data
-    const userData = {
-      email,
-      role,
-      isAuthenticated: true,
-    };
-
-    // Store in localStorage if remember me is checked, otherwise in sessionStorage
-    if (rememberMe) {
-      localStorage.setItem("user", JSON.stringify(userData));
-    } else {
-      sessionStorage.setItem("user", JSON.stringify(userData));
-    }
-
-    setTimeout(() => {
-      setIsLoading(false);
+    if(!otp)
+    {
       toast({
-        title: "Registration Successful",
-        description: `Welcome to Global India Corporation, ${name}!`,
-        status: "success",
+        title: "Please enter the OTP",
+        description: "No otp found",
+        status: "error",
         duration: 3000,
         isClosable: true,
       });
-      history.push("/auth/signin");
-    }, 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    try
+    {
+      const userCheck = await axios.post("http://localhost:8000/api/check-user",{"email" : email},
+        {
+          withCredentials : true
+        }
+      )
+
+      if(userCheck.status === 200)
+      {
+        const secret = JSON.parse(sessionStorage.getItem("secret"));
+
+        const newUser = {
+          "name" : name,
+          "email" : email,
+          "password" : password,
+          "role" : role,
+          "otp" : otp,
+          "secret" : secret
+        };
+
+        const registerUser = await axios.post("http://localhost:8000/api/registerUser",{newUser},{
+          withCredentials : true
+        })
+
+        if(registerUser.status === 200)
+        {
+          setTimeout(() => {
+            setIsLoading(false);
+            toast({
+              title: "Registration Successful",
+              description: `Welcome to Global India Corporation, ${name}!`,
+              status: "success",
+              duration: 3000,
+              isClosable: true,
+            });
+            history.push("/auth/signin");
+          }, 1000);
+        }
+        else
+        {
+          toast({
+            title: "Reigstration failed",
+            description: "There was a problem in user registration please try again later.",
+            status: "error",
+            duration: 3000,
+            isClosable: true,
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+      else
+      {
+          toast({
+            title: "User already exists",
+            description: `User ${name} already exists`,
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+          });
+          history.push("/auth/signin");
+      }
+    }
+    catch(err)
+    {
+      if(err.response.status === 406)
+      {
+        toast({
+          title: "User already exists",
+          description: `User ${name} already exists`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+        history.push("/auth/signin");
+      }
+      else
+      {
+        toast({
+          title: "Something went wrong",
+          description: `${err.response.data.error}`,
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
   };
 
   const handleSendOtp = async() => {
@@ -201,6 +260,8 @@ function SignUp() {
           duration: 3000,
           isClosable: true,
         });
+
+        sessionStorage.setItem("secret",JSON.stringify(response.data.secret));
       }
       else
       {

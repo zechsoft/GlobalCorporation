@@ -31,7 +31,6 @@ import routes from "routes.js";
 import { ArgonLogoDark, ArgonLogoLight, ChakraLogoDark, ChakraLogoLight, ProfileIcon, SettingsIcon } from "components/Icons/Icons";
 import { ItemContent } from "components/Menu/ItemContent";
 import { SearchBar } from "components/Navbars/SearchBar/SearchBar";
-import { SidebarResponsive } from "components/Sidebar/Sidebar";
 import { SidebarContext } from "contexts/SidebarContext";
 import axios from "axios";
 
@@ -39,9 +38,6 @@ import axios from "axios";
 import avatar1 from "assets/img/avatars/avatar1.png";
 import avatar2 from "assets/img/avatars/avatar2.png";
 import avatar3 from "assets/img/avatars/avatar3.png";
-
-// API base URL - adjust this to your backend URL
-const API_URL = "http://localhost:5000/api";
 
 export default function HeaderLinks(props) {
   const {
@@ -87,7 +83,7 @@ export default function HeaderLinks(props) {
 
   // Default avatars to assign to new users
   const defaultAvatars = [avatar1, avatar2, avatar3];
-
+ 
   // Set authorization header for all requests if token exists
   const setAuthToken = (token) => {
     if (token) {
@@ -95,15 +91,20 @@ export default function HeaderLinks(props) {
     } else {
       delete axios.defaults.headers.common['x-auth-token'];
     }
-  };
+  }; 
 
   useEffect(() => {
     // Check if user is already logged in
-    const token = localStorage.getItem("token");
-    const userData = JSON.parse(localStorage.getItem("userData") || "null");
+    var userData = JSON.parse(localStorage.getItem("user") || "null");
+
+    console.log("User data nav -> ",userData);
+
+    if(userData === null)
+    {
+      userData = JSON.parse(sessionStorage.getItem("user"));
+    }
     
-    if (token && userData) {
-      setAuthToken(token);
+    if (userData) {
       setIsLoggedIn(true);
       setCurrentUser(userData);
     }
@@ -123,24 +124,14 @@ export default function HeaderLinks(props) {
   const fetchAllClientAccounts = async () => {
     setIsLoadingClients(true);
     try {
-      // First, make sure we have a token (admin can see all users)
-      const token = localStorage.getItem("token");
-      if (!token) {
         // If no token, we'll use the register endpoint to get public users
-        const response = await axios.get(`${API_URL}/users/clients/public`);
-        setAllClientAccounts(response.data.map(client => ({
+        const response = await axios.post("http://localhost:8000/api/get-clients");
+
+        setAllClientAccounts(response.data.users.map(client => ({
           ...client,
           avatar: client.avatar || defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)]
         })));
-      } else {
-        // If we have a token, use it to get all users
-        setAuthToken(token);
-        const response = await axios.get(`${API_URL}/users?role=client`);
-        setAllClientAccounts(response.data.map(client => ({
-          ...client,
-          avatar: client.avatar || defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)]
-        })));
-      }
+
     } catch (error) {
       toast({
         title: "Error fetching client accounts",
@@ -171,7 +162,6 @@ export default function HeaderLinks(props) {
       // Update user data with new token
       const userData = {
         ...account,
-        token: token,
         id: user.id,
         role: user.role
       };
@@ -219,10 +209,11 @@ export default function HeaderLinks(props) {
 
   // Open the login modal for a specific account
   const openLoginModalForAccount = (account) => {
+    console.log("Opened",account);
     setSelectedAccount(account);
     setLoginCredentials({ 
-      email: account.email, 
-      password: ""
+      email: account.Email, 
+      password: account.pa
     });
     setIsLoginModalOpen(true);
     closeClientListModal(); // Close the client list modal if it's open
@@ -316,28 +307,43 @@ export default function HeaderLinks(props) {
   // Handle login logic
   const handleLogin = async () => {
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, {
-        email: loginCredentials.email,
+      const response = await axios.post("http://localhost:8000/api/login", {
+        email: loginCredentials.email === undefined ? selectedAccount.email : loginCredentials.email,
         password: loginCredentials.password
-      });
+      },{withCredentials:true});
 
-      const { token, user } = response.data;
-      
-      // Set auth token for future requests
-      setAuthToken(token);
+      const user = response.data;
       
       // Create a user object with avatar
       const userData = {
-        id: user.id,
         email: loginCredentials.email,
         role: user.role,
         avatar: selectedAccount?.avatar || defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)],
-        name: user.name || loginCredentials.email.split('@')[0]
+        name: user.displayName || loginCredentials.email.split('@')[0]
       };
 
       // Store token and user data in localStorage
-      localStorage.setItem("token", token);
-      localStorage.setItem("userData", JSON.stringify(userData));
+      const checkLocal = localStorage.getItem("user");
+      var local = false;
+
+      if(checkLocal === null || checkLocal === undefined)
+      {
+        sessionStorage.removeItem("user");
+      }
+      else
+      {
+        local = true;
+        localStorage.removeItem("user");
+      }
+
+      if(local)
+      {
+        localStorage.setItem("user", JSON.stringify(userData));
+      }
+      else
+      {
+        sessionStorage.setItem("user", JSON.stringify(userData));
+      }
       
       // Remember this account for future logins
       saveAccountToRemembered(userData, loginCredentials.password, true);
@@ -448,8 +454,8 @@ export default function HeaderLinks(props) {
       // Otherwise, show login modal pre-filled with client email
       openLoginModalForAccount({
         id: client._id,
-        name: client.name,
-        email: client.email,
+        name: client.userName,
+        email: client.Email,
         avatar: client.avatar,
         role: client.role
       });
@@ -505,9 +511,9 @@ export default function HeaderLinks(props) {
     });
   };
 
-  const isMobileView = useBreakpointValue({ base: true, md: false });
-  const isDesktopView = useBreakpointValue({ base: false, lg: true });
-
+  // We'll use Chakra UI's responsive utilities for different views
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  
   return (
     <Flex
       pe={{ sm: "0px", md: "16px" }}
@@ -517,22 +523,21 @@ export default function HeaderLinks(props) {
       <SearchBar me='18px' />
 
       <Box ml="auto" display="flex" alignItems="center">
-        {(isMobileView || isDesktopView) && (
-          <Button
-            onClick={toggleSidebar}
-            variant="no-hover"
-            ref={props.btnRef}
-            p="0px"
-            borderRadius="50%"
-            mr={{ base: "16px", lg: "24px" }}
-            bg="white"
-            _hover={{ bg: "white" }}
-            boxShadow="0px 0px 5px rgba(0, 0, 0, 0.1)"
-            aria-label="Toggle Sidebar"
-          >
-            <HamburgerIcon w="25px" h="25px" color="black" />
-          </Button>
-        )}
+        {/* Unified Sidebar Toggle Button for both mobile and desktop */}
+        <Button
+          onClick={toggleSidebar}
+          variant="no-hover"
+          ref={props.btnRef}
+          p="0px"
+          borderRadius="50%"
+          mr={{ base: "16px", lg: "24px" }}
+          bg="white"
+          _hover={{ bg: "white" }}
+          boxShadow="0px 0px 5px rgba(0, 0, 0, 0.1)"
+          aria-label="Toggle Sidebar"
+        >
+          <HamburgerIcon w="25px" h="25px" color="black" />
+        </Button>
 
         {!isLoggedIn ? (
           <Menu>
@@ -607,32 +612,6 @@ export default function HeaderLinks(props) {
           </Menu>
         )}
 
-        <SidebarResponsive
-          logo={
-            <Stack direction='row' spacing='12px' align='center' justify='center'>
-              {colorMode === "dark" ? (
-                <ArgonLogoLight w='74px' h='27px' />
-              ) : (
-                <ArgonLogoDark w='74px' h='27px' />
-              )}
-              <Box
-                w='1px'
-                h='20px'
-                bg={colorMode === "dark" ? "white" : "gray.700"}
-              />
-              {colorMode === "dark" ? (
-                <ChakraLogoLight w='82px' h='21px' />
-              ) : (
-                <ChakraLogoDark w='82px' h='21px' />
-              )}
-            </Stack>
-          }
-          colorMode={colorMode}
-          secondary={props.secondary}
-          routes={routes}
-          {...rest}
-        />
-
         <SettingsIcon
           cursor='pointer'
           ms={{ base: "16px", xl: "0px" }}
@@ -673,12 +652,12 @@ export default function HeaderLinks(props) {
                       <Avatar 
                         size="md" 
                         src={client.avatar} 
-                        name={client.name} 
+                        name={client.userName} 
                         mr="3" 
                       />
                       <Box>
-                        <Text fontWeight="bold">{client.name}</Text>
-                        <Text fontSize="sm" color="gray.600">{client.email}</Text>
+                        <Text fontWeight="bold">{client.userName}</Text>
+                        <Text fontSize="sm" color="gray.600">{client.Email}</Text>
                       </Box>
                     </Flex>
                   ))

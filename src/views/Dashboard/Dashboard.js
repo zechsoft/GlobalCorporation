@@ -53,6 +53,8 @@ export default function Dashboard() {
   // Determine if we're in admin or client mode based on the current path
   const [userType, setUserType] = useState('');
   const [dailyData,setDailyData] = useState([]);
+  console.log("session -> ",sessionStorage);
+  console.log("Local -> ",localStorage);
   
   useEffect(() => {
     // Extract the base path (admin or client) from the current location

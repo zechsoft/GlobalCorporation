@@ -51,7 +51,7 @@ export default function SignIn() {
   // Refs for animated sections
   const aboutSectionRef = useRef(null);
   const missionSectionRef = useRef(null);
-  const projectsSectionRef = useRef(null);
+  const projectsSectionRef = useRef(null); 
 
   // Toast for notifications
   const toast = useToast();
@@ -133,9 +133,6 @@ export default function SignIn() {
         withCredentials : true
       })
 
-      if (!response.status === 200) {
-        throw new Error(data.msg || "Login failed");
-      }
 
       // Extract user role from the response
       const userRole = response.data.role;
@@ -145,7 +142,12 @@ export default function SignIn() {
         email: response.data.displayMail,
         role: response.data.role, // Use the role from server response
         isAuthenticated: response.data.isAuthenticated,
+        mobile : response.data.mobile,
+        name : response.data.displayName,
+        location : response.data.location,
+        bio : response.data.bio
       };
+
 
       if (rememberMe) {
         localStorage.setItem("user", JSON.stringify(userData));
@@ -170,7 +172,7 @@ export default function SignIn() {
     } catch (err) {
       toast({
         title: "Login Failed",
-        description: err.message || "Invalid email or password",
+        description: err.response.data.error || "Invalid email or password",
         status: "error",
         duration: 3000,
         isClosable: true,

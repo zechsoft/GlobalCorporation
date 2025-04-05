@@ -44,18 +44,29 @@ import {
   FaTwitter,
 } from "react-icons/fa";
 import { IoDocumentsSharp } from "react-icons/io5";
+import axios from "axios";
 
 function Profile() {
   const { colorMode } = useColorMode();
   const [activeSection, setActiveSection] = useState("overview");
-  const [isEditing, setIsEditing] = useState(false);
+  const [isProfileEditing, setIsProfileEditing] = useState(false);
+  var user = JSON.parse(localStorage.getItem("user"));
+
+  if(!user || Object.keys(user).length <= 0)
+  {
+    user = JSON.parse(sessionStorage.getItem("user"));
+  }
+
   const [profileInfo, setProfileInfo] = useState({
-    fullName: "Esthera Jackson",
-    mobile: "(44) 123 1234 123",
-    email: "esthera@simmmple.com",
-    location: "United States",
-    bio: "Hi, I’m Esthera Jackson, Decisions: If you can’t decide, the answer is no. If two equally difficult paths, choose the one more painful in the short term (pain avoidance is creating an illusion of equality).",
+    fullName: user.name || "",
+    mobile: user.mobile || "",
+    email: user.email || "",
+    location: user.location || "",
+    bio: user.bio || "",
   });
+
+
+
   const [selectedProject, setSelectedProject] = useState(null);
   const [profileImage, setProfileImage] = useState(avatar5);
   const [projects, setProjects] = useState([
@@ -78,7 +89,7 @@ function Profile() {
       image: ImageArchitect3,
     },
     {
-      id: 3,
+      id: 4, // Fixed duplicate ID
       name: "Minimalist",
       description: "Different people have different taste, especially various types of music.",
       image: ImageArchitect3,
@@ -91,8 +102,34 @@ function Profile() {
   const borderProfileColor = useColorModeValue("white", "transparent");
   const emailColor = useColorModeValue("gray.400", "gray.300");
 
-  const handleEditClick = () => {
-    setIsEditing(!isEditing);
+  // Separate state for project modal
+  const { isOpen: isProjectModalOpen, onOpen: openProjectModal, onClose: closeProjectModal } = useDisclosure();
+
+  const handleEditProfileClick = () => {
+    if (isProfileEditing) {
+      // Save the profile info
+      saveProfileInfo();
+    } else {
+      // Enter edit mode
+      setIsProfileEditing(true);
+    }
+  };
+
+  const saveProfileInfo = async() => {
+    // Save profile info changes
+    try
+    {
+      const response = await axios.post("http://localhost:8000/api/edit-user",{
+      "data" : profileInfo
+    },{withCredentials:true});
+    }
+    catch(err)
+    {
+      console.log(err);
+    }
+    
+    setIsProfileEditing(false);
+    // No need for additional logic since we're directly modifying the state
   };
 
   const handleProfileInfoChange = (e) => {
@@ -117,8 +154,8 @@ function Profile() {
   };
 
   const handleProjectEditClick = (project) => {
-    setSelectedProject(project);
-    setIsEditing(true);
+    setSelectedProject({...project}); // Create a copy to avoid direct state mutation
+    openProjectModal();
   };
 
   const handleProjectChange = (e) => {
@@ -144,15 +181,15 @@ function Profile() {
   };
 
   const handleSaveProject = () => {
+    if (!selectedProject) return;
+    
     setProjects((prevProjects) =>
       prevProjects.map((project) =>
         project.id === selectedProject.id ? selectedProject : project
       )
     );
-    setIsEditing(false);
+    closeProjectModal();
   };
-
-  const { isOpen, onOpen, onClose } = useDisclosure();
 
   return (
     <Flex direction="column" pt={{ base: "120px", md: "75px", lg: "100px" }}>
@@ -318,61 +355,69 @@ function Profile() {
             </CardBody>
           </Card>
           <Card p="16px" my="24px">
-  <CardHeader p="12px 5px" mb="12px">
-    <Flex direction="column">
-      <Text fontSize="lg" color={textColor} fontWeight="bold">
-        Projects
-      </Text>
-      <Text fontSize="sm" color="gray.400" fontWeight="400">
-        Architects design houses
-      </Text>
-    </Flex>
-  </CardHeader>
-  <CardBody px="5px">
-    <Grid
-      templateColumns="repeat(2, 1fr)" // Adjusted to display two columns
-      gap="24px"
-      autoRows="auto" // Ensures rows are created as needed
-      autoFlow="row dense" // Ensures items are placed in the densest possible arrangement
-      >{projects.map((project, index) => (
-        <Flex direction="column" key={index} onClick={() => handleProjectClick(project)}>
-          <Box mb="20px" position="relative" borderRadius="15px">
-            <Image src={project.image} borderRadius="15px" />
-            <Box
-              w="100%"
-              h="100%"
-              position="absolute"
-              top="0"
-              borderRadius="15px"
-              bg="linear-gradient(360deg, rgba(49, 56, 96, 0.16) 0%, rgba(21, 25, 40, 0.88) 100%)"></Box>
-          </Box>
-          <Flex direction="column">
-            <Text fontSize="md" color="gray.400" fontWeight="600" mb="10px">
-              Project #{index + 1}
-            </Text>
-            <Text fontSize="xl" color={textColor} fontWeight="bold" mb="10px">
-              {project.name}
-            </Text>
-            <Text fontSize="md" color="gray.400" fontWeight="400" mb="20px">
-              {project.description}
-            </Text>
-            <Flex justifyContent="space-between">
-              <Button variant="dark" minW="110px" h="36px" onClick={() => handleProjectEditClick(project)}>
-                EDIT
-              </Button>
-              <AvatarGroup size="xs">
-                <Avatar name="Ryan Florence" src={avatar6} />
-                <Avatar name="Segun Adebayo" src={avatar2} />
-                <Avatar name="Kent Dodds" src={avatar3} />
-                <Avatar name="Prosper Otemuyiwa" src={avatar4} />
-              </AvatarGroup>
-            </Flex>
-          </Flex>
-        </Flex>
-      ))}
-    </Grid>
-  </CardBody>
-</Card>
+            <CardHeader p="12px 5px" mb="12px">
+              <Flex direction="column">
+                <Text fontSize="lg" color={textColor} fontWeight="bold">
+                  Projects
+                </Text>
+                <Text fontSize="sm" color="gray.400" fontWeight="400">
+                  Architects design houses
+                </Text>
+              </Flex>
+            </CardHeader>
+            <CardBody px="5px">
+              <Grid
+                templateColumns="repeat(2, 1fr)" // Adjusted to display two columns
+                gap="24px"
+                autoRows="auto" // Ensures rows are created as needed
+                autoFlow="row dense" // Ensures items are placed in the densest possible arrangement
+              >{projects.map((project, index) => (
+                <Flex direction="column" key={index} onClick={() => handleProjectClick(project)}>
+                  <Box mb="20px" position="relative" borderRadius="15px">
+                    <Image src={project.image} borderRadius="15px" />
+                    <Box
+                      w="100%"
+                      h="100%"
+                      position="absolute"
+                      top="0"
+                      borderRadius="15px"
+                      bg="linear-gradient(360deg, rgba(49, 56, 96, 0.16) 0%, rgba(21, 25, 40, 0.88) 100%)"></Box>
+                  </Box>
+                  <Flex direction="column">
+                    <Text fontSize="md" color="gray.400" fontWeight="600" mb="10px">
+                      Project #{index + 1}
+                    </Text>
+                    <Text fontSize="xl" color={textColor} fontWeight="bold" mb="10px">
+                      {project.name}
+                    </Text>
+                    <Text fontSize="md" color="gray.400" fontWeight="400" mb="20px">
+                      {project.description}
+                    </Text>
+                    <Flex justifyContent="space-between">
+                      <Button 
+                        variant="dark" 
+                        minW="110px" 
+                        h="36px" 
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent triggering the parent's onClick
+                          handleProjectEditClick(project);
+                        }}
+                      >
+                        EDIT
+                      </Button>
+                      <AvatarGroup size="xs">
+                        <Avatar name="Ryan Florence" src={avatar6} />
+                        <Avatar name="Segun Adebayo" src={avatar2} />
+                        <Avatar name="Kent Dodds" src={avatar3} />
+                        <Avatar name="Prosper Otemuyiwa" src={avatar4} />
+                      </AvatarGroup>
+                    </Flex>
+                  </Flex>
+                </Flex>
+              ))}
+              </Grid>
+            </CardBody>
+          </Card>
         </Grid>
       )}
 
@@ -381,163 +426,227 @@ function Profile() {
           <CardHeader p="12px 5px" mb="12px">
             <Flex justify="space-between" align="center">
               <Text fontSize="lg" color={textColor} fontWeight="bold">
-                Edit Profile Information
+                {isProfileEditing ? "Edit Profile Information" : "Profile Information"}
               </Text>
-              <Button onClick={handleEditClick} colorScheme="blue" size="sm">
-                {isEditing ? "Save" : "Edit"}
+              <Button onClick={handleEditProfileClick} colorScheme="blue" size="sm">
+                {isProfileEditing ? "Save" : "Edit"}
               </Button>
             </Flex>
           </CardHeader>
           <CardBody px="5px">
             <Flex direction="column">
-              <Input
-                name="fullName"
-                value={profileInfo.fullName}
-                onChange={handleProfileInfoChange}
-                isDisabled={!isEditing}
-                mb="18px"
-              />
-              <Input
-                name="mobile"
-                value={profileInfo.mobile}
-                onChange={handleProfileInfoChange}
-                isDisabled={!isEditing}
-                mb="18px"
-              />
-              <Input
-                name="email"
-                value={profileInfo.email}
-                onChange={handleProfileInfoChange}
-                isDisabled={!isEditing}
-                mb="18px"
-              />
-              <Input
-                name="location"
-                value={profileInfo.location}
-                onChange={handleProfileInfoChange}
-                isDisabled={!isEditing}
-                mb="18px"
-              />
-              <Textarea
-                name="bio"
-                value={profileInfo.bio}
-                onChange={handleProfileInfoChange}
-                isDisabled={!isEditing}
-                mb="18px"
-              />
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                isDisabled={!isEditing}
-                mb="18px"
-              />
+              <Flex align="center" mb="18px">
+                <Text fontSize="md" color={textColor} fontWeight="bold" me="10px" width="100px">
+                  Full Name:
+                </Text>
+                {isProfileEditing ? (
+                  <Input
+                    name="fullName"
+                    value={profileInfo.fullName}
+                    onChange={handleProfileInfoChange}
+                  />
+                ) : (
+                  <Text fontSize="md" color="gray.400" fontWeight="400">
+                    {profileInfo.fullName}
+                  </Text>
+                )}
+              </Flex>
+              
+              <Flex align="center" mb="18px">
+                <Text fontSize="md" color={textColor} fontWeight="bold" me="10px" width="100px">
+                  Mobile:
+                </Text>
+                {isProfileEditing ? (
+                  <Input
+                    name="mobile"
+                    value={profileInfo.mobile}
+                    onChange={handleProfileInfoChange}
+                  />
+                ) : (
+                  <Text fontSize="md" color="gray.400" fontWeight="400">
+                    {profileInfo.mobile}
+                  </Text>
+                )}
+              </Flex>
+              
+              <Flex align="center" mb="18px">
+                <Text fontSize="md" color={textColor} fontWeight="bold" me="10px" width="100px">
+                  Email:
+                </Text>
+                {isProfileEditing ? (
+                  <Input
+                    name="email"
+                    value={profileInfo.email}
+                    onChange={handleProfileInfoChange}
+                  />
+                ) : (
+                  <Text fontSize="md" color="gray.400" fontWeight="400">
+                    {profileInfo.email}
+                  </Text>
+                )}
+              </Flex>
+              
+              <Flex align="center" mb="18px">
+                <Text fontSize="md" color={textColor} fontWeight="bold" me="10px" width="100px">
+                  Location:
+                </Text>
+                {isProfileEditing ? (
+                  <Input
+                    name="location"
+                    value={profileInfo.location}
+                    onChange={handleProfileInfoChange}
+                  />
+                ) : (
+                  <Text fontSize="md" color="gray.400" fontWeight="400">
+                    {profileInfo.location}
+                  </Text>
+                )}
+              </Flex>
+              
+              <Flex align="center" mb="18px">
+                <Text fontSize="md" color={textColor} fontWeight="bold" me="10px" width="100px">
+                  Bio:
+                </Text>
+                {isProfileEditing ? (
+                  <Textarea
+                    name="bio"
+                    value={profileInfo.bio}
+                    onChange={handleProfileInfoChange}
+                  />
+                ) : (
+                  <Text fontSize="md" color="gray.400" fontWeight="400">
+                    {profileInfo.bio}
+                  </Text>
+                )}
+              </Flex>
+              
+              {isProfileEditing && (
+                <Flex align="center" mb="18px">
+                  <Text fontSize="md" color={textColor} fontWeight="bold" me="10px" width="100px">
+                    Profile Image:
+                  </Text>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                  />
+                </Flex>
+              )}
             </Flex>
           </CardBody>
         </Card>
       )}
 
-{activeSection === "projects" && (
-  <Card p="16px" my="24px">
-    <CardHeader p="12px 5px" mb="12px">
-      <Flex direction="column">
-        <Text fontSize="lg" color={textColor} fontWeight="bold">
-          Projects
-        </Text>
-        <Text fontSize="sm" color="gray.400" fontWeight="400">
-          Architects design houses
-        </Text>
-      </Flex>
-    </CardHeader>
-    
-    <CardBody px="5px">
-      <Grid
-        templateColumns="repeat(2, 1fr)"
-        gap="24px">
-        {projects.map((project, index) => (
-          <Flex direction="column" key={index} onClick={() => handleProjectClick(project)}>
-            <Box mb="20px" position="relative" borderRadius="15px">
-              <Image
-                src={project.image}
-                borderRadius="15px"
-                w="100%"
-                h="400px"
-                objectFit="cover"
-              />
-              <Box
-                w="100%"
-                h="100%"
-                position="absolute"
-                top="0"
-                borderRadius="15px"
-                bg="linear-gradient(360deg, rgba(49, 56, 96, 0.16) 0%, rgba(21, 25, 40, 0.88) 100%)"></Box>
-            </Box>
+      {activeSection === "projects" && (
+        <Card p="16px" my="24px">
+          <CardHeader p="12px 5px" mb="12px">
             <Flex direction="column">
-              <Text fontSize="md" color="gray.400" fontWeight="600" mb="10px">
-                Project #{index + 1}
+              <Text fontSize="lg" color={textColor} fontWeight="bold">
+                Projects
               </Text>
-              <Text fontSize="xl" color={textColor} fontWeight="bold" mb="10px">
-                {project.name}
+              <Text fontSize="sm" color="gray.400" fontWeight="400">
+                Architects design houses
               </Text>
-              <Text fontSize="md" color="gray.400" fontWeight="400" mb="20px">
-                {project.description}
-              </Text>
-              <Flex justifyContent="space-between">
-                <Button variant="dark" minW="110px" h="36px" onClick={() => handleProjectEditClick(project)}>
-                  EDIT
-                </Button>
-                <AvatarGroup size="xs">
-                  <Avatar name="Ryan Florence" src={avatar6} />
-                  <Avatar name="Segun Adebayo" src={avatar2} />
-                  <Avatar name="Kent Dodds" src={avatar3} />
-                  <Avatar name="Prosper Otemuyiwa" src={avatar4} />
-                </AvatarGroup>
-              </Flex>
             </Flex>
-          </Flex>
-        ))}
-      </Grid>
-    </CardBody>
-  </Card>
-)}
-      {isEditing && selectedProject && (
-        <Modal isOpen={isEditing} onClose={() => setIsEditing(false)}>
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Edit Project</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <Input
-                name="name"
-                value={selectedProject.name}
-                onChange={handleProjectChange}
-                mb="18px"
-                placeholder="Project Name"
-              />
-              <Textarea
-                name="description"
-                value={selectedProject.description}
-                onChange={handleProjectChange}
-                mb="18px"
-                placeholder="Project Description"
-              />
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleProjectImageUpload}
-                mb="18px"
-                placeholder="Upload Project Image"
-              />
-            </ModalBody>
-            <ModalFooter>
-              <Button colorScheme="blue" mr={3} onClick={handleSaveProject}>
-                Save
-              </Button>
-              <Button onClick={() => setIsEditing(false)}>Cancel</Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+          </CardHeader>
+          
+          <CardBody px="5px">
+            <Grid
+              templateColumns="repeat(2, 1fr)"
+              gap="24px">
+              {projects.map((project, index) => (
+                <Flex direction="column" key={index}>
+                  <Box mb="20px" position="relative" borderRadius="15px">
+                    <Image
+                      src={project.image}
+                      borderRadius="15px"
+                      w="100%"
+                      h="400px"
+                      objectFit="cover"
+                    />
+                    <Box
+                      w="100%"
+                      h="100%"
+                      position="absolute"
+                      top="0"
+                      borderRadius="15px"
+                      bg="linear-gradient(360deg, rgba(49, 56, 96, 0.16) 0%, rgba(21, 25, 40, 0.88) 100%)"></Box>
+                  </Box>
+                  <Flex direction="column">
+                    <Text fontSize="md" color="gray.400" fontWeight="600" mb="10px">
+                      Project #{index + 1}
+                    </Text>
+                    <Text fontSize="xl" color={textColor} fontWeight="bold" mb="10px">
+                      {project.name}
+                    </Text>
+                    <Text fontSize="md" color="gray.400" fontWeight="400" mb="20px">
+                      {project.description}
+                    </Text>
+                    <Flex justifyContent="space-between">
+                      <Button 
+                        variant="dark" 
+                        minW="110px" 
+                        h="36px" 
+                        onClick={() => handleProjectEditClick(project)}
+                      >
+                        EDIT
+                      </Button>
+                      <AvatarGroup size="xs">
+                        <Avatar name="Ryan Florence" src={avatar6} />
+                        <Avatar name="Segun Adebayo" src={avatar2} />
+                        <Avatar name="Kent Dodds" src={avatar3} />
+                        <Avatar name="Prosper Otemuyiwa" src={avatar4} />
+                      </AvatarGroup>
+                    </Flex>
+                  </Flex>
+                </Flex>
+              ))}
+            </Grid>
+          </CardBody>
+        </Card>
       )}
+
+      {/* Project Edit Modal - Now uses its own state */}
+      <Modal isOpen={isProjectModalOpen} onClose={closeProjectModal}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit Project</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {selectedProject && (
+              <>
+                <Input
+                  name="name"
+                  value={selectedProject.name}
+                  onChange={handleProjectChange}
+                  mb="18px"
+                  placeholder="Project Name"
+                />
+                <Textarea
+                  name="description"
+                  value={selectedProject.description}
+                  onChange={handleProjectChange}
+                  mb="18px"
+                  placeholder="Project Description"
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProjectImageUpload}
+                  mb="18px"
+                  placeholder="Upload Project Image"
+                />
+              </>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" mr={3} onClick={handleSaveProject}>
+              Save
+            </Button>
+            <Button onClick={closeProjectModal}>Cancel</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Flex>
   );
 }

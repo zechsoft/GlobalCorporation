@@ -11,6 +11,7 @@ const LogoutButton = () => {
     // Remove user data from storage
     localStorage.removeItem("user");
     sessionStorage.removeItem("user");
+    sessionStorage.removeItem("secret");
     
     // Show success message
     toast({

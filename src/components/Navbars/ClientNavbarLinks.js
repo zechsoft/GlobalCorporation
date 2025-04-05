@@ -21,8 +21,8 @@ import {
   Input,
   Avatar,
   useBreakpointValue,
-  FormControl, // Add this import
-  FormLabel,   // Add this import
+  FormControl,
+  FormLabel,
 } from "@chakra-ui/react";
 import { NavLink } from "react-router-dom";
 import routes from "clientroutes"; // Ensure this is the correct path for client routes
@@ -32,7 +32,7 @@ import avatar3 from "assets/img/avatars/avatar3.png";
 import { ArgonLogoDark, ArgonLogoLight, ProfileIcon, SettingsIcon } from "components/Icons/Icons";
 import { SearchBar } from "components/Navbars/SearchBar/SearchBar";
 import ProfileDropdown from "components/ProfileDropdown/ProfileDropdown";
-import { SidebarResponsive } from "components/Sidebar/Sidebar";
+// Removed SidebarResponsive import
 import { SidebarContext } from "contexts/SidebarContext";
 
 export default function ClientNavbarLinks(props) {
@@ -93,8 +93,8 @@ export default function ClientNavbarLinks(props) {
     }
   ];
 
-  const isMobileView = useBreakpointValue({ base: true, md: false });
-  const isDesktopView = useBreakpointValue({ base: false, lg: true });
+  // This is used to determine when to show the hamburger icon
+  const showHamburger = useBreakpointValue({ base: true, lg: true });
 
   return (
     <Flex
@@ -110,7 +110,8 @@ export default function ClientNavbarLinks(props) {
       </Menu>
 
       <Box ml="auto" display="flex" alignItems="center">
-        {(isMobileView || isDesktopView) && (
+        {/* Show hamburger menu button on all screen sizes for unified approach */}
+        {showHamburger && (
           <Button
             onClick={toggleSidebar}
             variant="no-hover"
@@ -121,28 +122,16 @@ export default function ClientNavbarLinks(props) {
             bg="white"
             _hover={{ bg: "white" }}
             boxShadow="0px 0px 5px rgba(0, 0, 0, 0.1)"
-            ml="10px" // Move this slightly right
+            ml="10px"
+            aria-label="Toggle Sidebar"
           >
             <HamburgerIcon w="25px" h="25px" color="black" />
           </Button>
         )}
       </Box>
 
-      <SidebarResponsive
-        logo={
-          <Stack direction="row" spacing="12px" align="center" justify="center">
-            {colorMode === "dark" ? (
-              <ArgonLogoLight w="74px" h="27px" />
-            ) : (
-              <ArgonLogoLight w="74px" h="27px" />
-            )}
-          </Stack>
-        }
-        colorMode={colorMode}
-        secondary={props.secondary}
-        routes={routes}
-        {...rest}
-      />
+      {/* The SidebarResponsive component has been removed */}
+      {/* It will be replaced by the unified Sidebar component that should be in your Sidebar.js file */}
 
       <SettingsIcon
         cursor="pointer"
@@ -153,7 +142,7 @@ export default function ClientNavbarLinks(props) {
         w="30px"
         h="30px"
       />
-      
+
       {/* Login Modal */}
       <Modal isOpen={isLoginModalOpen} onClose={closeLoginModal}>
         <ModalOverlay />
