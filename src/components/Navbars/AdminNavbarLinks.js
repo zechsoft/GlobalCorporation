@@ -97,12 +97,12 @@ export default function HeaderLinks(props) {
     // Check if user is already logged in
     var userData = JSON.parse(localStorage.getItem("user") || "null");
 
-    console.log("User data nav -> ",userData);
+    // console.log("User data nav -> ",userData);
 
-    if(userData === null)
-    {
-      userData = JSON.parse(sessionStorage.getItem("user"));
-    }
+    // if(userData === null)
+    // {
+    //   userData = JSON.parse(sessionStorage.getItem("user"));
+    // }
     
     if (userData) {
       setIsLoggedIn(true);
@@ -119,6 +119,16 @@ export default function HeaderLinks(props) {
       handleAutoLogin(autoLoginAccount);
     }
   }, []);
+
+  const redirectToUserDashboard = (user) => {
+    if (user.role === "admin") {
+      console.log("admin role hit");
+      history.push("/admin/dashboard");
+    } else {
+      console.log("Client route hit")
+      history.push("/client/dashboard");
+    }
+  };
 
   // Fetch all client accounts from the database
   const fetchAllClientAccounts = async () => {
@@ -157,7 +167,6 @@ export default function HeaderLinks(props) {
       const { token, user } = response.data;
       
       // Set auth token for future requests
-      setAuthToken(token);
       
       // Update user data with new token
       const userData = {
@@ -167,7 +176,6 @@ export default function HeaderLinks(props) {
       };
 
       // Store token and user data in localStorage
-      localStorage.setItem("token", token);
       localStorage.setItem("userData", JSON.stringify(userData));
       
       setCurrentUser(userData);
@@ -313,11 +321,13 @@ export default function HeaderLinks(props) {
       },{withCredentials:true});
 
       const user = response.data;
+
+      console.log("data -> ",user);
       
       // Create a user object with avatar
       const userData = {
-        email: loginCredentials.email,
-        role: user.role,
+        email: loginCredentials.email || user.displayMail,
+        role: user.role || "client",
         avatar: selectedAccount?.avatar || defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)],
         name: user.displayName || loginCredentials.email.split('@')[0]
       };
@@ -328,22 +338,29 @@ export default function HeaderLinks(props) {
 
       if(checkLocal === null || checkLocal === undefined)
       {
+        console.log("in admin nav session removed");
         sessionStorage.removeItem("user");
       }
       else
       {
         local = true;
+        console.log("in admin nav local removed");
         localStorage.removeItem("user");
       }
 
       if(local)
       {
-        localStorage.setItem("user", JSON.stringify(userData));
+        console.log("in admin nav local set");
+        localStorage.setItem("user", JSON.stringify(user));
       }
       else
       {
-        sessionStorage.setItem("user", JSON.stringify(userData));
+        console.log("in admin nav session set");
+        sessionStorage.setItem("user", JSON.stringify(user));
       }
+
+      console.log("local nav -> ",localStorage.getItem("user"));
+      console.log("session nav-> ",sessionStorage.getItem("user"));
       
       // Remember this account for future logins
       saveAccountToRemembered(userData, loginCredentials.password, true);
@@ -474,7 +491,7 @@ export default function HeaderLinks(props) {
     setAuthToken(null);
     setCurrentUser(null);
     setIsLoggedIn(false);
-    history.push("/");
+    // history.push("/");
     
     toast({
       title: "Logged Out",
@@ -486,13 +503,6 @@ export default function HeaderLinks(props) {
   };
 
   // Redirect user to the appropriate dashboard based on their role
-  const redirectToUserDashboard = (user) => {
-    if (user.role === "admin") {
-      history.push("/admin/dashboard");
-    } else {
-      history.push("/client/dashboard");
-    }
-  };
 
   // Remove an account from remembered accounts
   const removeAccount = (email, e) => {
@@ -513,6 +523,7 @@ export default function HeaderLinks(props) {
 
   // We'll use Chakra UI's responsive utilities for different views
   const isMobile = useBreakpointValue({ base: true, md: false });
+  console.log(rememberedAccounts.length)
   
   return (
     <Flex

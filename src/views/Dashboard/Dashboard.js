@@ -53,14 +53,30 @@ export default function Dashboard() {
   // Determine if we're in admin or client mode based on the current path
   const [userType, setUserType] = useState('');
   const [dailyData,setDailyData] = useState([]);
-  console.log("session -> ",sessionStorage);
-  console.log("Local -> ",localStorage);
-  
+
   useEffect(() => {
     // Extract the base path (admin or client) from the current location
-    const pathParts = location.pathname.split('/');
-    const basePath = pathParts[1]; // Will be 'admin' or 'client'
-    setUserType(basePath);
+
+    var userData = JSON.parse(localStorage.getItem("user"));
+    
+    if(userData === null || userData === undefined)
+    {
+      console.log("yes local is hit");
+      userData = JSON.parse(sessionStorage.getItem("user"));
+    }
+
+    console.log("In dash user -> ",userData)
+
+    if(userData && userData.role)
+    {
+      console.log("Yes all set");
+      setUserType(userData.role);
+      // return;
+    }
+
+    // const pathParts = location.pathname.split('/');
+    // const basePath = pathParts[1]; // Will be 'admin' or 'client'
+    // setUserType(basePath);
   }, [location]);
 
   useEffect(() => {
@@ -68,7 +84,6 @@ export default function Dashboard() {
       const response = await axios.get("http://localhost:8000/api/dailywork/get-all");
 
       setDailyData(response.data.data);
-      console.log(response.data.data);
     }
 
     getData();
@@ -76,6 +91,7 @@ export default function Dashboard() {
 
   // Unified navigation function that handles both admin and client routes
   const navigateTo = (page) => {
+    console.log(userType,"",page,"in dash.js bastard");
     // Use the detected userType (admin or client) as the base path
     history.push(`/${userType}/${page}`);
   };
