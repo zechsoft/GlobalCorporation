@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Button,
@@ -31,12 +31,16 @@ import {
   useToast,
   Spinner,
   Badge,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from "@chakra-ui/react";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, UserPlusIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useHistory } from "react-router-dom";
-import { customerDeliveryNoticeApi } from "./services/customerDeliveryNoticeAPI";
-import axios from "axios";
 
 const TABS = [
   { label: "All", value: "all" },
@@ -45,7 +49,7 @@ const TABS = [
 ];
 
 const CustomerDeliveryNotice = () => {
-  const user = JSON.parse(localStorage.getItem("user")) ? JSON.parse(localStorage.getItem("user")) : JSON.parse(sessionStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user")) || JSON.parse(sessionStorage.getItem("user"));
   const [tableData, setTableData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,6 +57,8 @@ const CustomerDeliveryNotice = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [rowToDelete, setRowToDelete] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [userData, setUserData] = useState(null);
@@ -71,6 +77,7 @@ const CustomerDeliveryNotice = () => {
   const itemsPerPage = 10;
 
   const searchInputRef = useRef(null);
+  const cancelRef = useRef();
   const [isFocused, setIsFocused] = useState(false);
   const toast = useToast();
   const history = useHistory();
@@ -111,43 +118,48 @@ const CustomerDeliveryNotice = () => {
     return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  // Fetch data from API
-  const fetchData = useCallback(async () => {
-    if (!userData) return;
+  // Generate a unique ID for new rows
+  const generateUniqueId = () => {
+    return 'local_' + Math.random().toString(36).substr(2, 9);
+  };
 
-    setIsLoading(true);
-    try {
-      let params = {};
-
-      // Handle tab filtering
-      if (activeTab === "monitored") {
-        params.isMonitored = true;
-      } else if (activeTab === "unmonitored") {
-        params.isMonitored = false;
-      }
-
-      const response = await customerDeliveryNoticeApi.getAll(params);
-      setTableData(response);
-      setFilteredData(response);
-      setTotalPages(Math.ceil(response.length / itemsPerPage));
-    } catch (error) {
-      toast({
-        title: "Error fetching data",
-        description: error.message,
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeTab, toast, userData]);
-
+  // Mock data for initial state
   useEffect(() => {
-    if (userData) {
-      fetchData();
+    if (userData && tableData.length === 0) {
+      const mockData = [
+        {
+          _id: "1",
+          orderNumber: "ORD001",
+          materialCategory: "Electronics",
+          vendor: "TechSupplies Inc.",
+          invitee: "John Smith",
+          hostInviterContactInfo: "john@email.com",
+          sender: "Mary Johnson",
+          status: "Active",
+          supplementTemplate: "Standard",
+          isMonitored: true,
+          createTime: "2025-04-10T14:30:00Z"
+        },
+        {
+          _id: "2",
+          orderNumber: "ORD002",
+          materialCategory: "Office Supplies",
+          vendor: "Office World",
+          invitee: "Sarah Brown",
+          hostInviterContactInfo: "sarah@email.com",
+          sender: "Tom Wilson",
+          status: "Inactive",
+          supplementTemplate: "Premium",
+          isMonitored: false,
+          createTime: "2025-04-11T09:15:00Z"
+        }
+      ];
+      
+      setTableData(mockData);
+      setFilteredData(mockData);
+      setTotalPages(Math.ceil(mockData.length / itemsPerPage));
     }
-  }, [fetchData, userData]);
+  }, [userData, tableData.length]);
 
   useEffect(() => {
     if (searchInputRef.current) {
@@ -158,9 +170,22 @@ const CustomerDeliveryNotice = () => {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
+    
+    // Apply tab filtering locally
+    if (tab === "all") {
+      setFilteredData(tableData);
+    } else if (tab === "monitored") {
+      const monitored = tableData.filter(row => row.isMonitored === true);
+      setFilteredData(monitored);
+    } else if (tab === "unmonitored") {
+      const unmonitored = tableData.filter(row => row.isMonitored === false);
+      setFilteredData(unmonitored);
+    }
+    
+    setTotalPages(Math.ceil(filteredData.length / itemsPerPage));
   };
 
-  const handleAddRow = async() => {
+  const handleAddRow = () => {
     setIsModalOpen(true);
     setSelectedRowId(null);
     setNewRow({
@@ -174,17 +199,6 @@ const CustomerDeliveryNotice = () => {
       supplementTemplate: "",
       isMonitored: false,
     });
-
-    try
-    {
-      const response = await axios.post("http://localhost:8000/api/customerdelivery/add-data",[newRow,{"user":user.email}],{
-        withCredentials : true
-      })
-    }
-    catch(err)
-    {
-      console.log(err);
-    }
   };
 
   const handleEditRow = (rowId) => {
@@ -206,53 +220,106 @@ const CustomerDeliveryNotice = () => {
     }
   };
 
-  const handleDeleteRow = async (rowId) => {
-    if (window.confirm("Are you sure you want to delete this record?")) {
-      try {
-        await customerDeliveryNoticeApi.delete(rowId);
-        toast({
-          title: "Record deleted",
-          description: "The record has been successfully deleted.",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-        fetchData();
-      } catch (error) {
-        toast({
-          title: "Error deleting record",
-          description: error.message,
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
+  const handleDeleteRow = (rowId) => {
+    setRowToDelete(rowId);
+    setIsDeleteAlertOpen(true);
+  };
+
+  const confirmDelete = () => {
+    try {
+      // Handle delete locally
+      const updatedTableData = tableData.filter(row => row._id !== rowToDelete);
+      const updatedFilteredData = filteredData.filter(row => row._id !== rowToDelete);
+      
+      setTableData(updatedTableData);
+      setFilteredData(updatedFilteredData);
+      setTotalPages(Math.ceil(updatedFilteredData.length / itemsPerPage));
+      
+      toast({
+        title: "Record deleted",
+        description: "The record has been successfully removed",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: "Error deleting record",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleteAlertOpen(false);
+      setRowToDelete(null);
     }
   };
 
-  const handleSaveRow = async () => {
+  const handleSaveRow = () => {
     try {
       if (selectedRowId) {
-        await customerDeliveryNoticeApi.update(selectedRowId, newRow);
+        // Update existing row locally
+        const updatedTableData = tableData.map(row => {
+          if (row._id === selectedRowId) {
+            return { ...row, ...newRow };
+          }
+          return row;
+        });
+        
+        // Update filtered data as well
+        const updatedFilteredData = filteredData.map(row => {
+          if (row._id === selectedRowId) {
+            return { ...row, ...newRow };
+          }
+          return row;
+        });
+        
+        setTableData(updatedTableData);
+        setFilteredData(updatedFilteredData);
+        
         toast({
           title: "Record updated",
-          description: "The record has been successfully updated.",
+          description: "The record has been successfully updated",
           status: "success",
           duration: 3000,
           isClosable: true,
         });
       } else {
-        await customerDeliveryNoticeApi.create(newRow);
+        // Add new row locally
+        const currentDate = new Date();
+        const newRowWithId = {
+          _id: generateUniqueId(),
+          ...newRow,
+          createTime: currentDate.toISOString(),
+        };
+        
+        const updatedTableData = [...tableData, newRowWithId];
+        
+        // Update filtered data based on the active tab
+        let updatedFilteredData = [...filteredData];
+        if (
+          activeTab === "all" || 
+          (activeTab === "monitored" && newRow.isMonitored) || 
+          (activeTab === "unmonitored" && !newRow.isMonitored)
+        ) {
+          updatedFilteredData = [...filteredData, newRowWithId];
+        }
+        
+        setTableData(updatedTableData);
+        setFilteredData(updatedFilteredData);
+        setTotalPages(Math.ceil(updatedFilteredData.length / itemsPerPage));
+        
         toast({
           title: "Record added",
-          description: "The record has been successfully added.",
+          description: "The record has been successfully added",
           status: "success",
           duration: 3000,
           isClosable: true,
         });
       }
+      
       setIsModalOpen(false);
-      fetchData();
     } catch (error) {
       toast({
         title: selectedRowId ? "Error updating record" : "Error adding record",
@@ -264,26 +331,37 @@ const CustomerDeliveryNotice = () => {
     }
   };
 
-  const handleViewAllClick = () => history.push("/admin/tables");
-
-  const handleSearch = async () => {
+  const handleSearch = () => {
     setIsLoading(true);
     try {
-      const searchParams = {
-        searchTerm,
-        searchField: searchField === "All" ? "" : searchField,
-      };
-
-      // Handle tab filtering
-      if (activeTab === "monitored") {
-        searchParams.isMonitored = true;
-      } else if (activeTab === "unmonitored") {
-        searchParams.isMonitored = false;
+      // Handle search locally
+      let searchResults = [...tableData];
+      
+      if (searchTerm) {
+        searchResults = searchResults.filter(row => {
+          if (searchField === "All") {
+            // Search in all fields
+            return Object.values(row).some(value => 
+              typeof value === 'string' && value.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+          } else {
+            // Search in specific field
+            const fieldValue = row[searchField];
+            return typeof fieldValue === 'string' && 
+              fieldValue.toLowerCase().includes(searchTerm.toLowerCase());
+          }
+        });
       }
-
-      const response = await customerDeliveryNoticeApi.search(searchParams);
-      setFilteredData(response);
-      setTotalPages(Math.ceil(response.length / itemsPerPage));
+      
+      // Apply tab filtering
+      if (activeTab === "monitored") {
+        searchResults = searchResults.filter(row => row.isMonitored === true);
+      } else if (activeTab === "unmonitored") {
+        searchResults = searchResults.filter(row => row.isMonitored === false);
+      }
+      
+      setFilteredData(searchResults);
+      setTotalPages(Math.ceil(searchResults.length / itemsPerPage));
       setCurrentPage(1);
     } catch (error) {
       toast({
@@ -301,8 +379,17 @@ const CustomerDeliveryNotice = () => {
   const handleClear = () => {
     setSearchTerm("");
     setSearchField("All");
-    setFilteredData(tableData);
-    setTotalPages(Math.ceil(tableData.length / itemsPerPage));
+    
+    // Reset to the appropriate filtered data based on active tab
+    if (activeTab === "all") {
+      setFilteredData(tableData);
+    } else if (activeTab === "monitored") {
+      setFilteredData(tableData.filter(row => row.isMonitored === true));
+    } else if (activeTab === "unmonitored") {
+      setFilteredData(tableData.filter(row => row.isMonitored === false));
+    }
+    
+    setTotalPages(Math.ceil(filteredData.length / itemsPerPage));
     setCurrentPage(1);
   };
 
@@ -344,11 +431,8 @@ const CustomerDeliveryNotice = () => {
                 {userData.role}
               </Badge>
             </Flex>
-            <Button size="sm" onClick={handleViewAllClick} mr={2}>
-              View All
-            </Button>
             <Button size="sm" colorScheme="blue" leftIcon={<UserPlusIcon />} onClick={handleAddRow}>
-              Add Row
+              Add New
             </Button>
             <Button size="sm" colorScheme="red" variant="outline" onClick={handleLogout} ml={2}>
               Logout
@@ -532,6 +616,7 @@ const CustomerDeliveryNotice = () => {
         )}
       </Flex>
 
+      {/* Add/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="xl">
         <ModalOverlay />
         <ModalContent>
@@ -545,7 +630,6 @@ const CustomerDeliveryNotice = () => {
                   <Input
                     value={newRow.orderNumber}
                     onChange={(e) => setNewRow({ ...newRow, orderNumber: e.target.value })}
-                    required
                   />
                 </FormControl>
                 <FormControl width={{ base: "100%", md: "48%" }}>
@@ -553,7 +637,6 @@ const CustomerDeliveryNotice = () => {
                   <Input
                     value={newRow.materialCategory}
                     onChange={(e) => setNewRow({ ...newRow, materialCategory: e.target.value })}
-                    required
                   />
                 </FormControl>
               </Flex>
@@ -564,7 +647,6 @@ const CustomerDeliveryNotice = () => {
                   <Input
                     value={newRow.vendor}
                     onChange={(e) => setNewRow({ ...newRow, vendor: e.target.value })}
-                    required
                   />
                 </FormControl>
                 <FormControl width={{ base: "100%", md: "48%" }}>
@@ -572,7 +654,6 @@ const CustomerDeliveryNotice = () => {
                   <Input
                     value={newRow.invitee}
                     onChange={(e) => setNewRow({ ...newRow, invitee: e.target.value })}
-                    required
                   />
                 </FormControl>
               </Flex>
@@ -582,7 +663,6 @@ const CustomerDeliveryNotice = () => {
                 <Input
                   value={newRow.hostInviterContactInfo}
                   onChange={(e) => setNewRow({ ...newRow, hostInviterContactInfo: e.target.value })}
-                  required
                 />
               </FormControl>
 
@@ -592,7 +672,6 @@ const CustomerDeliveryNotice = () => {
                   <Input
                     value={newRow.sender}
                     onChange={(e) => setNewRow({ ...newRow, sender: e.target.value })}
-                    required
                   />
                 </FormControl>
                 <FormControl width={{ base: "100%", md: "48%" }}>
@@ -600,7 +679,6 @@ const CustomerDeliveryNotice = () => {
                   <Select
                     value={newRow.status}
                     onChange={(e) => setNewRow({ ...newRow, status: e.target.value })}
-                    required
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -615,7 +693,6 @@ const CustomerDeliveryNotice = () => {
                   <Input
                     value={newRow.supplementTemplate}
                     onChange={(e) => setNewRow({ ...newRow, supplementTemplate: e.target.value })}
-                    required
                   />
                 </FormControl>
                 <FormControl width={{ base: "100%", md: "48%" }}>
@@ -641,6 +718,34 @@ const CustomerDeliveryNotice = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteAlertOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={() => setIsDeleteAlertOpen(false)}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Record
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete this record? This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={() => setIsDeleteAlertOpen(false)}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmDelete} ml={3}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };

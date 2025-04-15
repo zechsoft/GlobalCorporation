@@ -22,8 +22,7 @@ import {
   Spinner,
   Alert,
   AlertIcon,
-  useToast,
-  Heading
+  useToast
 } from "@chakra-ui/react";
 import { InfoIcon, PhoneIcon, EmailIcon, SearchIcon, DownloadIcon } from "@chakra-ui/icons";
 
@@ -220,11 +219,6 @@ const CustomerOrderTable = ({
 
   return (
     <Box p={5} borderWidth="1px" borderRadius="lg" bg="white" boxShadow="sm">
-      <Flex justifyContent="space-between" alignItems="center" mb={5}>
-        <Heading size="md">Customer Order Information</Heading>
-        <Text>Welcome, {currentUser?.email} ({currentUser?.role})</Text>
-      </Flex>
-      
       {/* Filter controls */}
       <HStack spacing={4} mb={5}>
         <InputGroup maxW="300px">

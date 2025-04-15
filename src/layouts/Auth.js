@@ -71,7 +71,7 @@ export default function Pages(props) {
     // This function is only used for sidebar rendering
     return routes.filter(route => {
       // Filter out Sign In and Sign Up routes that have layout="/auth"
-      return !(route.layout === "/auth" && (route.path === "/signin" || route.path === "/signup"));
+      return !(route.layout === "/auth" && (route.path === "/signin" || route.path === "/signup" || route.path === "/forgot-password"));
     });
   }
 

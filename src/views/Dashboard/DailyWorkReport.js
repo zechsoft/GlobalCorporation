@@ -54,7 +54,7 @@ const DailyWorkReport = () => {
       workType: "Construction",
       progress: "50",
       hours: 8,
-      charges: "400",
+      charges: "400", // Keep in state but don't display
       date: "2023-04-18",
     },
     {
@@ -68,12 +68,12 @@ const DailyWorkReport = () => {
       workType: "Maintenance",
       progress: "75",
       hours: 6,
-      charges: "300",
+      charges: "300", // Keep in state but don't display
       date: "2023-04-19",
     },
   ]);
 
-  const [filteredData, setFilteredData] = useState(tableData); // New state for filtered data
+  const [filteredData, setFilteredData] = useState(tableData);
   const [searchTerm, setSearchTerm] = useState("");
   const [country, setCountry] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
@@ -88,7 +88,7 @@ const DailyWorkReport = () => {
     workType: "",
     progress: "",
     hours: "",
-    charges: "",
+    charges: "", // Keep in form but don't display in table
     date: "",
   });
   const [selectedRowId, setSelectedRowId] = useState(null);
@@ -97,16 +97,14 @@ const DailyWorkReport = () => {
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
-
     const fetchData = async () => {
       try {
-        const response = await axios.post("http://localhost:8000/api/dailywork/get-data",{"email":user.email}, {
-          withCredentials: true, // If your API requires authentication cookies
+        const response = await axios.post("http://localhost:8000/api/dailywork/get-data", {"email": user.email}, {
+          withCredentials: true,
         });
 
-
         setTableData(response.data);
-        setFilteredData(response.data); // Set filtered data to match initial data
+        setFilteredData(response.data);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -138,12 +136,12 @@ const DailyWorkReport = () => {
         row.id === selectedRowId ? { ...row, ...newRow } : row
       );
       setTableData(updatedTableData);
-      setFilteredData(updatedTableData); // Update filteredData as well
+      setFilteredData(updatedTableData);
       setSelectedRowId(null);
     } else {
       const updatedRow = { ...newRow, id: tableData.length + 1 };
       setTableData([...tableData, updatedRow]);
-      setFilteredData([...filteredData, updatedRow]); // Update filteredData as well
+      setFilteredData([...filteredData, updatedRow]);
     }
     setIsModalOpen(false);
     setNewRow({
@@ -156,18 +154,16 @@ const DailyWorkReport = () => {
       workType: "",
       progress: "",
       hours: "",
-      charges: "",
+      charges: "", // Keep in reset
       date: "",
     });
 
-    try
-    {
-      const response = await axios.post("http://localhost:8000/api/dailywork/add-data",[newRow,{"user":user.email}],{
-        withCredentials : true
-      })
-    }
-    catch(err)
-    {
+    try {
+      // Send data to backend with charges field included
+      const response = await axios.post("http://localhost:8000/api/dailywork/add-data", [newRow, {"user": user.email}], {
+        withCredentials: true
+      });
+    } catch(err) {
       console.log(err);
     }
   };
@@ -177,7 +173,6 @@ const DailyWorkReport = () => {
 
   const handleSearch = () => {
     if (country === "All") {
-      // Search in all columns
       const filteredData = tableData.filter((row) =>
         row.employees.toString().includes(searchTerm) ||
         row.workType.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -185,7 +180,6 @@ const DailyWorkReport = () => {
       );
       setFilteredData(filteredData);
     } else {
-      // Search in specific column
       const filteredData = tableData.filter((row) => {
         switch (country) {
           case "No. of Employees":
@@ -205,7 +199,7 @@ const DailyWorkReport = () => {
   const handleClear = () => {
     setSearchTerm("");
     setCountry("All");
-    setFilteredData(tableData); // Reset to original data
+    setFilteredData(tableData);
   };
 
   return (
@@ -248,7 +242,7 @@ const DailyWorkReport = () => {
                 fontSize={isFocused || searchTerm ? "xs" : "sm"}
                 transition="all 0.2s ease"
                 pointerEvents="none"
-                opacity={isFocused || searchTerm ? 0 : 1} // Set opacity to 0 when focused or has value
+                opacity={isFocused || searchTerm ? 0 : 1}
               >
                 Search here
               </FormLabel>
@@ -276,54 +270,57 @@ const DailyWorkReport = () => {
           </Flex>
         </Flex>
 
-        <Table variant="simple" borderRadius="10px" overflow="hidden">
-          <Thead bg="gray.100" height="60px">
-            <Tr>
-              <Th color="gray.400">SR.NO</Th>
-              <Th color="gray.400">Company Name</Th>
-              <Th color="gray.400">Project Name</Th>
-              <Th color="gray.400">Supervisor Name</Th>
-              <Th color="gray.400">Manager Name</Th>
-              <Th color="gray.400">Prepaid By</Th>
-              <Th color="gray.400">No. of Employee</Th>
-              <Th color="gray.400">Nature of Work</Th>
-              <Th color="gray.400">Progress (%)</Th>
-              <Th color="gray.400">Hour of Work</Th>
-              <Th color="gray.400">Charges</Th>
-              <Th color="gray.400">Date</Th>
-              <Th color="gray.400">Actions</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {filteredData.map((row) => (
-              <Tr key={row.id}>
-                <Td>{row.id}</Td>
-                <Td>{row.CompanyName}</Td>
-                <Td>{row.ProjectName}</Td>
-                <Td>{row.SupervisorName}</Td>
-                <Td>{row.ManagerName}</Td>
-                <Td>{row.PrepaidBy}</Td>
-                <Td>{row.Employee}</Td>
-                <Td>{row.NatureofWork}</Td>
-                <Td>{row.Progress}</Td>
-                <Td>{row.HourofWork}</Td>
-                <Td>{row.Charges}</Td>
-                <Td>{row.Date}</Td>
-                <Td>
-                  <Tooltip label="Edit">
-                    <IconButton
-                      variant="outline"
-                      aria-label="Edit"
-                      icon={<PencilIcon />}
-                      size="xs"
-                      onClick={() => handleEditRow(row.id)}
-                    />
-                  </Tooltip>
-                </Td>
+        {/* Wrap the table in a Box with overflowX to enable horizontal scrolling */}
+        <Box overflowX="auto">
+          <Table variant="simple" borderRadius="10px">
+            <Thead bg="gray.100" height="60px">
+              <Tr>
+                <Th color="gray.400">SR.NO</Th>
+                <Th color="gray.400">Company Name</Th>
+                <Th color="gray.400">Project Name</Th>
+                <Th color="gray.400">Supervisor Name</Th>
+                <Th color="gray.400">Manager Name</Th>
+                <Th color="gray.400">Prepaid By</Th>
+                <Th color="gray.400">No. of Employee</Th>
+                <Th color="gray.400">Nature of Work</Th>
+                <Th color="gray.400">Progress (%)</Th>
+                <Th color="gray.400">Hour of Work</Th>
+                {/* Removed Charges column */}
+                <Th color="gray.400">Date</Th>
+                <Th color="gray.400">Actions</Th>
               </Tr>
-            ))}
-          </Tbody>
-        </Table>
+            </Thead>
+            <Tbody>
+              {filteredData.map((row) => (
+                <Tr key={row.id}>
+                  <Td>{row.id}</Td>
+                  <Td>{row.CompanyName}</Td>
+                  <Td>{row.ProjectName}</Td>
+                  <Td>{row.SupervisorName}</Td>
+                  <Td>{row.ManagerName}</Td>
+                  <Td>{row.PrepaidBy}</Td>
+                  <Td>{row.Employee}</Td>
+                  <Td>{row.NatureofWork}</Td>
+                  <Td>{row.Progress}</Td>
+                  <Td>{row.HourofWork}</Td>
+                  {/* Removed Charges column */}
+                  <Td>{row.Date}</Td>
+                  <Td>
+                    <Tooltip label="Edit">
+                      <IconButton
+                        variant="outline"
+                        aria-label="Edit"
+                        icon={<PencilIcon />}
+                        size="xs"
+                        onClick={() => handleEditRow(row.id)}
+                      />
+                    </Tooltip>
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Box>
 
         <Flex justify="space-between" align="center" mt={4}>
           <Text fontSize="sm">Page {currentPage} of 1</Text>
@@ -403,7 +400,8 @@ const DailyWorkReport = () => {
                 onChange={(e) => setNewRow({ ...newRow, hours: e.target.value })}
               />
             </FormControl>
-            <FormControl mt={4}>
+            {/* Keep Charges field in the form for backend compatibility */}
+            <FormControl mt={4} display="none">
               <FormLabel>Charges</FormLabel>
               <Input
                 value={newRow.charges}

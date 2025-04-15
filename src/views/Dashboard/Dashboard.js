@@ -113,6 +113,7 @@ export default function Dashboard() {
   const [currentTable, setCurrentTable] = useState("Material Inquiry");
 
   const tableNames = [
+    "Supplier Information",
     "Material Inquiry",
     "Customer Delivery",
     "Customer Order",
@@ -542,7 +543,7 @@ export default function Dashboard() {
                   &gt;
                 </Button>
               </Flex>
-              <Button variant="primary" maxH="30px" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <Button variant="primary" maxH="30px"  onClick={() => handleCardClick("Daily Work Report")} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                 SEE ALL
               </Button>
             </Flex>
@@ -730,6 +731,26 @@ export default function Dashboard() {
                     />
                     Status
                   </Th>
+                  <Th
+                    color="gray.400"
+                    borderColor={borderColor}
+                    position="relative"
+                    _hover={{ color: "blue.500" }}
+                  >
+                    <motion.div
+                      initial={{ width: 0 }}
+                      whileHover={{ width: "100%" }}
+                      transition={{ duration: 0.3 }}
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        height: "2px",
+                        backgroundColor: "blue",
+                      }}
+                    />
+                    Date
+                  </Th>
                   <Th color="gray.400" borderColor={borderColor}></Th>
                 </Tr>
               </Thead>
@@ -747,11 +768,9 @@ export default function Dashboard() {
                       {el.visitors}
                     </Td>
                     <Td color={textTableColor} fontSize="sm" borderColor={borderColor} border={index === arr.length - 1 ? "none" : null}>
-                      <Flex align="center">
-                        <Text color={textTableColor} fontWeight="bold" fontSize="sm" me="12px">{el.percentage}%</Text>
-                        <Progress size="xs" colorScheme={el.color} value={el.percentage} minW="120px" />
-                      </Flex>
+                      {el.visitors}
                     </Td>
+                    
                   </Tr>
                 ))}
               </Tbody>

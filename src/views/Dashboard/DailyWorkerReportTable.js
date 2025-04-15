@@ -109,10 +109,10 @@ const DailyWorkerReportTable = ({
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       results = results.filter(report => 
-        report.companyName.toLowerCase().includes(term) ||
-        report.projectName.toLowerCase().includes(term) ||
-        report.supervisorName.toLowerCase().includes(term) ||
-        report.managerName.toLowerCase().includes(term)
+        report.companyName?.toLowerCase().includes(term) ||
+        report.projectName?.toLowerCase().includes(term) ||
+        report.supervisorName?.toLowerCase().includes(term) ||
+        report.managerName?.toLowerCase().includes(term)
       );
     }
     
@@ -128,23 +128,22 @@ const DailyWorkerReportTable = ({
   const exportToCSV = () => {
     // Create CSV headers
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Sr.No.,Company Name,Project Name,Date,Supervisor Name,Manager Name,Prepared By,No. of Employee,Nature of Work,Progress,Hour of Work,Charges,Date\n";
+    csvContent += "Sr.No.,Company Name,Project Name,Date,Supervisor Name,Manager Name,Prepared By,No. of Employee,Nature of Work,Progress,Hour of Work,Charges\n";
     
-    // Add data rows
+    // Add data rows - include charges in export even though not displayed in table
     filteredReports.forEach((row, index) => {
       csvContent += `${index + 1},`;
-      csvContent += `"${row.CompanyName}",`;
-      csvContent += `"${row.ProjectName}",`;
+      csvContent += `"${row.CompanyName || ''}",`;
+      csvContent += `"${row.ProjectName || ''}",`;
       csvContent += `${new Date(row.Date).toLocaleDateString()},`;
-      csvContent += `"${row.SupervisorName}",`;
-      csvContent += `"${row.ManagerName}",`;
-      csvContent += `"${row.PrepaidBy}",`;
-      csvContent += `${row.numberOfEmployee},`;
-      csvContent += `"${row.NatureOfWork}",`;
-      csvContent += `${row.Progress},`;
-      csvContent += `${row.HourOfWork},`;
-      csvContent += `${row.Charges},`;
-      csvContent += `${new Date(row.Date).toLocaleDateString()}\n`;
+      csvContent += `"${row.SupervisorName || ''}",`;
+      csvContent += `"${row.ManagerName || ''}",`;
+      csvContent += `"${row.PrepaidBy || ''}",`;
+      csvContent += `${row.Employee || ''},`;
+      csvContent += `"${row.NatureOfWork || ''}",`;
+      csvContent += `${row.Progress || ''},`;
+      csvContent += `${row.HourOfWork || ''},`;
+      csvContent += `${row.Charges || ''}\n`;
     });
     
     // Create download link
@@ -231,8 +230,8 @@ const DailyWorkerReportTable = ({
         Showing {filteredReports.length} of {workerReports.length} reports
       </Text>
       
-      {/* Table */}
-      <Box overflowX="auto">
+      {/* Table with horizontal scroll */}
+      <Box overflowX="auto" width="100%">
         <Table variant="simple" color={textColor} size="md">
           <Thead bg="gray.50">
             <Tr my=".8rem" pl="0px">
@@ -247,13 +246,13 @@ const DailyWorkerReportTable = ({
               <Th pl="25px" pr="25px" borderColor={borderColor} color="gray.600" fontWeight="bold">Nature of Work</Th>
               <Th pl="25px" pr="25px" borderColor={borderColor} color="gray.600" fontWeight="bold">Progress</Th>
               <Th pl="25px" pr="25px" borderColor={borderColor} color="gray.600" fontWeight="bold">Hour of Work</Th>
-              <Th pl="25px" pr="25px" borderColor={borderColor} color="gray.600" fontWeight="bold">Charges</Th>
+              {/* Removed Charges column header */}
             </Tr>
           </Thead>
           <Tbody>
             {filteredReports.length > 0 ? (
               filteredReports.map((row, index) => (
-                <Tr key={row._id} _hover={{ bg: "gray.50" }}>
+                <Tr key={row._id || index} _hover={{ bg: "gray.50" }}>
                   <Td pl="25px" pr="25px" borderColor={borderColor}>
                     <Text fontWeight="medium">{index + 1}</Text>
                   </Td>
@@ -271,12 +270,12 @@ const DailyWorkerReportTable = ({
                     {getProgressBadge(row.Progress)}
                   </Td>
                   <Td pl="25px" pr="25px" borderColor={borderColor}>{row.HourOfWork}</Td>
-                  <Td pl="25px" pr="25px" borderColor={borderColor}>{row.Charges}</Td>
+                  {/* Removed Charges column data */}
                 </Tr>
               ))
             ) : (
               <Tr>
-                <Td colSpan={12} textAlign="center" py={4}>
+                <Td colSpan={11} textAlign="center" py={4}>
                   No worker report data matching current filters
                 </Td>
               </Tr>

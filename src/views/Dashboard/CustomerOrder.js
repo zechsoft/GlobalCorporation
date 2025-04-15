@@ -28,11 +28,19 @@ import {
   ModalCloseButton,
   FormControl,
   FormLabel,
+  useToast,
+  Spinner,
+  Badge,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from "@chakra-ui/react";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { PencilIcon, UserPlusIcon } from "@heroicons/react/24/solid";
+import { PencilIcon, UserPlusIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useHistory } from "react-router-dom";
-import axios from "axios";
 
 const TABS = [
   { label: "All", value: "all" },
@@ -40,287 +48,440 @@ const TABS = [
   { label: "Unmonitored", value: "unmonitored" },
 ];
 
-const CustomerOrder = () => {
-  const [tableData, setTableData] = useState([
-    {
-      id: 1,
-      customerNumber: "123",
-      customer: "John Doe",
-      buyer: "Jane Doe",
-      platformNo: "P123",
-      poNo: "PO123",
-      purchaseDate: "2023-04-18",
-      orderAmount: "1000",
-      currency: "USD",
-      purchasingDepartment: "Dept A",
-      purchaser: "Alice",
-      requisitionBusinessGroup: "Group 1",
-      deliveryStatus: "Shipped",
-      orderStatus: "Pending",
-      acceptanceStatus: "Accepted",
-      statementStatus: "Generated",
-    },
-    {
-      id: 2,
-      customerNumber: "124",
-      customer: "Alice Smith",
-      buyer: "Bob Brown",
-      platformNo: "P124",
-      poNo: "PO124",
-      purchaseDate: "2023-04-19",
-      orderAmount: "2000",
-      currency: "EUR",
-      purchasingDepartment: "Dept B",
-      purchaser: "Bob",
-      requisitionBusinessGroup: "Group 2",
-      deliveryStatus: "Delivered",
-      orderStatus: "Completed",
-      acceptanceStatus: "Rejected",
-      statementStatus: "Pending",
-    },
-  ]);
-
-  const user = JSON.parse(localStorage.getItem("user")) ? JSON.parse(localStorage.getItem("user")) : JSON.parse(sessionStorage.getItem("user"));
-  const [filteredData, setFilteredData] = useState(tableData); // New state for filtered data
+const CustomerDeliveryNotice = () => {
+  const user = JSON.parse(localStorage.getItem("user")) || JSON.parse(sessionStorage.getItem("user"));
+  const [tableData, setTableData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [country, setCountry] = useState("All");
+  const [searchField, setSearchField] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [rowToDelete, setRowToDelete] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [userData, setUserData] = useState(null);
   const [newRow, setNewRow] = useState({
-    customerNumber: "",
-    customer: "",
-    buyer: "",
-    platformNo: "",
-    poNo: "",
-    purchaseDate: "",
-    orderAmount: "",
-    currency: "",
-    purchasingDepartment: "",
-    purchaser: "",
-    requisitionBusinessGroup: "",
-    deliveryStatus: "",
-    orderStatus: "",
-    acceptanceStatus: "",
-    statementStatus: "",
+    orderNumber: "",
+    materialCategory: "",
+    vendor: "",
+    invitee: "",
+    hostInviterContactInfo: "",
+    sender: "",
+    status: "Active",
+    supplementTemplate: "",
+    isMonitored: false,
   });
   const [selectedRowId, setSelectedRowId] = useState(null);
+  const itemsPerPage = 10;
 
   const searchInputRef = useRef(null);
+  const cancelRef = useRef();
   const [isFocused, setIsFocused] = useState(false);
+  const toast = useToast();
+  const history = useHistory();
+
+  // Check if user is logged in
+  useEffect(() => {
+    const userDataStr = localStorage.getItem("user") || sessionStorage.getItem("user");
+    if (!userDataStr) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to access this page",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      history.push("/auth/signin");
+      return;
+    }
+
+    try {
+      const userDataObj = JSON.parse(userDataStr);
+      setUserData(userDataObj);
+    } catch (error) {
+      toast({
+        title: "Authentication error",
+        description: "Invalid user data. Please log in again",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      history.push("/auth/signin");
+    }
+  }, [history, toast]);
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  // Generate a unique ID for new rows
+  const generateUniqueId = () => {
+    return 'local_' + Math.random().toString(36).substr(2, 9);
+  };
+
+  // Mock data for initial state
+  useEffect(() => {
+    if (userData && tableData.length === 0) {
+      const mockData = [
+        {
+          _id: "1",
+          orderNumber: "ORD001",
+          materialCategory: "Electronics",
+          vendor: "TechSupplies Inc.",
+          invitee: "John Smith",
+          hostInviterContactInfo: "john@email.com",
+          sender: "Mary Johnson",
+          status: "Active",
+          supplementTemplate: "Standard",
+          isMonitored: true,
+          createTime: "2025-04-10T14:30:00Z"
+        },
+        {
+          _id: "2",
+          orderNumber: "ORD002",
+          materialCategory: "Office Supplies",
+          vendor: "Office World",
+          invitee: "Sarah Brown",
+          hostInviterContactInfo: "sarah@email.com",
+          sender: "Tom Wilson",
+          status: "Inactive",
+          supplementTemplate: "Premium",
+          isMonitored: false,
+          createTime: "2025-04-11T09:15:00Z"
+        }
+      ];
+      
+      setTableData(mockData);
+      setFilteredData(mockData);
+      setTotalPages(Math.ceil(mockData.length / itemsPerPage));
+    }
+  }, [userData, tableData.length]);
 
   useEffect(() => {
-
-    const fetchData = async () => {
-      try {
-        const response = await axios.post("http://localhost:8000/api/customer/get-data",{"email":user.email}, {
-          withCredentials: true, // If your API requires authentication cookies
-        });
-
-        console.log(response);
-  
-        setTableData(response.data);
-        setFilteredData(response.data); // Set filtered data to match initial data
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      }
-    };
-
-    fetchData();
-
     if (searchInputRef.current) {
       setIsFocused(searchInputRef.current === document.activeElement);
     }
   }, [searchTerm]);
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    
+    // Apply tab filtering locally
+    if (tab === "all") {
+      setFilteredData(tableData);
+    } else if (tab === "monitored") {
+      const monitored = tableData.filter(row => row.isMonitored === true);
+      setFilteredData(monitored);
+    } else if (tab === "unmonitored") {
+      const unmonitored = tableData.filter(row => row.isMonitored === false);
+      setFilteredData(unmonitored);
+    }
+    
+    setTotalPages(Math.ceil(filteredData.length / itemsPerPage));
+  };
+
   const handleAddRow = () => {
     setIsModalOpen(true);
     setSelectedRowId(null);
+    setNewRow({
+      orderNumber: "",
+      materialCategory: "",
+      vendor: "",
+      invitee: "",
+      hostInviterContactInfo: "",
+      sender: "",
+      status: "Active",
+      supplementTemplate: "",
+      isMonitored: false,
+    });
   };
 
   const handleEditRow = (rowId) => {
-    const selectedRow = tableData.find((row) => row.id === rowId);
+    const selectedRow = tableData.find((row) => row._id === rowId);
     if (selectedRow) {
-      setNewRow(selectedRow);
+      setNewRow({
+        orderNumber: selectedRow.orderNumber,
+        materialCategory: selectedRow.materialCategory,
+        vendor: selectedRow.vendor,
+        invitee: selectedRow.invitee,
+        hostInviterContactInfo: selectedRow.hostInviterContactInfo,
+        sender: selectedRow.sender,
+        status: selectedRow.status,
+        supplementTemplate: selectedRow.supplementTemplate,
+        isMonitored: selectedRow.isMonitored,
+      });
       setSelectedRowId(rowId);
       setIsModalOpen(true);
     }
   };
 
-  const handleSaveRow = async() => {
-    if (selectedRowId) {
-      const updatedTableData = tableData.map((row) =>
-        row.id === selectedRowId ? { ...row, ...newRow } : row
-      );
-      setTableData(updatedTableData);
-      setFilteredData(updatedTableData); // Update filteredData as well
-      setSelectedRowId(null);
-    } else {
-      const updatedRow = { ...newRow, id: tableData.length + 1 };
-      setTableData([...tableData, updatedRow]);
-      setFilteredData([...filteredData, updatedRow]); // Update filteredData as well
-    }
-    setIsModalOpen(false);
-    setNewRow({
-      customerNumber: "",
-      customer: "",
-      buyer: "",
-      platformNo: "",
-      poNo: "",
-      purchaseDate: "",
-      orderAmount: "",
-      currency: "",
-      purchasingDepartment: "",
-      purchaser: "",
-      requisitionBusinessGroup: "",
-      deliveryStatus: "",
-      orderStatus: "",
-      acceptanceStatus: "",
-      statementStatus: "",
-    });
+  const handleDeleteRow = (rowId) => {
+    setRowToDelete(rowId);
+    setIsDeleteAlertOpen(true);
+  };
 
-    try
-    {
-      const response = await axios.post("http://localhost:8000/api/customer/add-data",[newRow,{"user":user.email}],{
-        withCredentials : true
-      })
-    }
-    catch(err)
-    {
-      console.log(err);
+  const confirmDelete = () => {
+    try {
+      // Handle delete locally
+      const updatedTableData = tableData.filter(row => row._id !== rowToDelete);
+      const updatedFilteredData = filteredData.filter(row => row._id !== rowToDelete);
+      
+      setTableData(updatedTableData);
+      setFilteredData(updatedFilteredData);
+      setTotalPages(Math.ceil(updatedFilteredData.length / itemsPerPage));
+      
+      toast({
+        title: "Record deleted",
+        description: "The record has been successfully removed",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: "Error deleting record",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleteAlertOpen(false);
+      setRowToDelete(null);
     }
   };
 
-  const navigate = useHistory();
-  const handleViewAllClick = () => navigate.push("/admin/tables");
+  const handleSaveRow = () => {
+    try {
+      if (selectedRowId) {
+        // Update existing row locally
+        const updatedTableData = tableData.map(row => {
+          if (row._id === selectedRowId) {
+            return { ...row, ...newRow };
+          }
+          return row;
+        });
+        
+        // Update filtered data as well
+        const updatedFilteredData = filteredData.map(row => {
+          if (row._id === selectedRowId) {
+            return { ...row, ...newRow };
+          }
+          return row;
+        });
+        
+        setTableData(updatedTableData);
+        setFilteredData(updatedFilteredData);
+        
+        toast({
+          title: "Record updated",
+          description: "The record has been successfully updated",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        // Add new row locally
+        const currentDate = new Date();
+        const newRowWithId = {
+          _id: generateUniqueId(),
+          ...newRow,
+          createTime: currentDate.toISOString(),
+        };
+        
+        const updatedTableData = [...tableData, newRowWithId];
+        
+        // Update filtered data based on the active tab
+        let updatedFilteredData = [...filteredData];
+        if (
+          activeTab === "all" || 
+          (activeTab === "monitored" && newRow.isMonitored) || 
+          (activeTab === "unmonitored" && !newRow.isMonitored)
+        ) {
+          updatedFilteredData = [...filteredData, newRowWithId];
+        }
+        
+        setTableData(updatedTableData);
+        setFilteredData(updatedFilteredData);
+        setTotalPages(Math.ceil(updatedFilteredData.length / itemsPerPage));
+        
+        toast({
+          title: "Record added",
+          description: "The record has been successfully added",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+      
+      setIsModalOpen(false);
+    } catch (error) {
+      toast({
+        title: selectedRowId ? "Error updating record" : "Error adding record",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleViewAllClick = () => history.push("/admin/tables");
 
   const handleSearch = () => {
-    if (country === "All") {
-      // Search in all columns
-      const filteredData = tableData.filter((row) =>
-        row.customerNumber.includes(searchTerm) ||
-        row.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        row.buyer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        row.platformNo.includes(searchTerm) ||
-        row.poNo.includes(searchTerm) ||
-        row.purchaseDate.includes(searchTerm) ||
-        row.orderAmount.includes(searchTerm) ||
-        row.currency.includes(searchTerm) ||
-        row.purchasingDepartment.includes(searchTerm) ||
-        row.purchaser.includes(searchTerm) ||
-        row.requisitionBusinessGroup.includes(searchTerm) ||
-        row.deliveryStatus.includes(searchTerm) ||
-        row.orderStatus.includes(searchTerm) ||
-        row.acceptanceStatus.includes(searchTerm) ||
-        row.statementStatus.includes(searchTerm)
-      );
-      setFilteredData(filteredData);
-    } else {
-      // Search in specific column
-      const filteredData = tableData.filter((row) => {
-        switch (country) {
-          case "Customer Number":
-            return row.customerNumber.includes(searchTerm);
-          case "Customer":
-            return row.customer.toLowerCase().includes(searchTerm.toLowerCase());
-          case "Buyer":
-            return row.buyer.toLowerCase().includes(searchTerm.toLowerCase());
-          case "Platform No":
-            return row.platformNo.includes(searchTerm);
-          case "PO No":
-            return row.poNo.includes(searchTerm);
-          case "Purchase Date":
-            return row.purchaseDate.includes(searchTerm);
-          case "Order Amount":
-            return row.orderAmount.includes(searchTerm);
-          case "Currency":
-            return row.currency.includes(searchTerm);
-          case "Purchasing Department":
-            return row.purchasingDepartment.includes(searchTerm);
-          case "Purchaser":
-            return row.purchaser.includes(searchTerm);
-          case "Requisition Business Group":
-            return row.requisitionBusinessGroup.includes(searchTerm);
-          case "Delivery Status":
-            return row.deliveryStatus.includes(searchTerm);
-          case "Order Status":
-            return row.orderStatus.includes(searchTerm);
-          case "Acceptance Status":
-            return row.acceptanceStatus.includes(searchTerm);
-          case "Statement Status":
-            return row.statementStatus.includes(searchTerm);
-          default:
-            return true;
-        }
+    setIsLoading(true);
+    try {
+      // Handle search locally
+      let searchResults = [...tableData];
+      
+      if (searchTerm) {
+        searchResults = searchResults.filter(row => {
+          if (searchField === "All") {
+            // Search in all fields
+            return Object.values(row).some(value => 
+              typeof value === 'string' && value.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+          } else {
+            // Search in specific field
+            const fieldValue = row[searchField];
+            return typeof fieldValue === 'string' && 
+              fieldValue.toLowerCase().includes(searchTerm.toLowerCase());
+          }
+        });
+      }
+      
+      // Apply tab filtering
+      if (activeTab === "monitored") {
+        searchResults = searchResults.filter(row => row.isMonitored === true);
+      } else if (activeTab === "unmonitored") {
+        searchResults = searchResults.filter(row => row.isMonitored === false);
+      }
+      
+      setFilteredData(searchResults);
+      setTotalPages(Math.ceil(searchResults.length / itemsPerPage));
+      setCurrentPage(1);
+    } catch (error) {
+      toast({
+        title: "Error searching records",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
       });
-      setFilteredData(filteredData);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleClear = () => {
     setSearchTerm("");
-    setCountry("All");
-    setFilteredData(tableData); // Reset to original data
+    setSearchField("All");
+    
+    // Reset to the appropriate filtered data based on active tab
+    if (activeTab === "all") {
+      setFilteredData(tableData);
+    } else if (activeTab === "monitored") {
+      setFilteredData(tableData.filter(row => row.isMonitored === true));
+    } else if (activeTab === "unmonitored") {
+      setFilteredData(tableData.filter(row => row.isMonitored === false));
+    }
+    
+    setTotalPages(Math.ceil(filteredData.length / itemsPerPage));
+    setCurrentPage(1);
   };
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    sessionStorage.removeItem("user");
+    history.push("/auth/signin");
+  };
+
+  // Calculate pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
+
+  if (!userData) {
+    return (
+      <Flex justify="center" align="center" height="100vh">
+        <Spinner size="xl" color="blue.500" />
+      </Flex>
+    );
+  }
 
   return (
     <Box mt={16}>
       <Flex direction="column" bg="white" p={6} boxShadow="md" borderRadius="15px" width="100%">
         <Flex justify="space-between" mb={8}>
           <Flex direction="column">
-            <Text fontSize="xl" fontWeight="bold">Customer Orders</Text>
-            <Text fontSize="md" color="gray.400">Manage Customer Orders</Text>
+            <Text fontSize="xl" fontWeight="bold">
+              Customer Delivery Notice
+            </Text>
+            <Text fontSize="md" color="gray.400">
+              Manage Customer Delivery Notice
+            </Text>
           </Flex>
-          <Flex direction="row" gap={2}>
-            <Button size="sm" onClick={handleViewAllClick} mr={2}>View All</Button>
+          <Flex direction="row" gap={2} align="center">
+            <Flex direction="column" align="flex-end" mr={4}>
+              <Text fontWeight="bold">{userData.email}</Text>
+              <Badge colorScheme={userData.role === "admin" ? "red" : "green"}>
+                {userData.role}
+              </Badge>
+            </Flex>
+            <Button size="sm" onClick={handleViewAllClick} mr={2}>
+              View All
+            </Button>
             <Button size="sm" colorScheme="blue" leftIcon={<UserPlusIcon />} onClick={handleAddRow}>
               Add Row
+            </Button>
+            <Button size="sm" colorScheme="red" variant="outline" onClick={handleLogout} ml={2}>
+              Logout
             </Button>
           </Flex>
         </Flex>
 
-        <Flex justify="space-between" align="center" mb={4}>
-          <Tabs defaultIndex={0} className="w-full md:w-max" isLazy>
+        <Flex justify="space-between" align="center" mb={4} flexDirection={{ base: "column", md: "row" }} gap={4}>
+          <Tabs
+            defaultIndex={0}
+            onChange={(index) => handleTabChange(TABS[index].value)}
+            className="w-full md:w-max"
+            isLazy
+          >
             <TabList>
               {TABS.map(({ label, value }) => (
-                <Tab key={value} value={value}>{label}</Tab>
+                <Tab key={value} value={value}>
+                  {label}
+                </Tab>
               ))}
             </TabList>
           </Tabs>
-          <Flex>
-            <Select value={country} onChange={e => setCountry(e.target.value)} placeholder="" width={40} mr={4}>
+          <Flex flexWrap="wrap" gap={2}>
+            <Select
+              value={searchField}
+              onChange={(e) => setSearchField(e.target.value)}
+              placeholder=""
+              width={{ base: "100%", md: "auto" }}
+              minW="200px"
+            >
               <option value="All">All</option>
-              <option value="Customer Number">Customer Number</option>
-              <option value="Customer">Customer</option>
-              <option value="Buyer">Buyer</option>
-              <option value="Platform No">Platform No</option>
-              <option value="PO No">PO No</option>
-              <option value="Purchase Date">Purchase Date</option>
-              <option value="Order Amount">Order Amount</option>
-              <option value="Currency">Currency</option>
-              <option value="Purchasing Department">Purchasing Department</option>
-              <option value="Purchaser">Purchaser</option>
-              <option value="Requisition Business Group">Requisition Business Group</option>
-              <option value="Delivery Status">Delivery Status</option>
-              <option value="Order Status">Order Status</option>
-              <option value="Acceptance Status">Acceptance Status</option>
-              <option value="Statement Status">Statement Status</option>
+              <option value="orderNumber">Order Number</option>
+              <option value="materialCategory">Material Category</option>
+              <option value="vendor">Vendor</option>
+              <option value="invitee">Invitee</option>
+              <option value="hostInviterContactInfo">Host/Inviter Contact Information</option>
+              <option value="sender">Sender</option>
+              <option value="status">Status</option>
+              <option value="supplementTemplate">Supplement Template</option>
             </Select>
-            <FormControl width="half" mr={4}>
-              <FormLabel
-                position="absolute"
-                top={isFocused || searchTerm ? "-16px" : "12px"}
-                left="40px"
-                color="gray.500"
-                fontSize={isFocused || searchTerm ? "xs" : "sm"}
-                transition="all 0.2s ease"
-                pointerEvents="none"
-                opacity={isFocused || searchTerm ? 0 : 1} // Set opacity to 0 when focused or has value
-              >
-                Search here
-              </FormLabel>
+            <FormControl width={{ base: "100%", md: "auto" }} minW="200px">
               <InputGroup>
                 <InputLeftElement pointerEvents="none">
-                  <MagnifyingGlassIcon style={{ height: "25px", width: "20px", padding: "2.5px" }} />
+                  <MagnifyingGlassIcon style={{ height: "20px", width: "20px", color: "gray" }} />
                 </InputLeftElement>
                 <Input
                   ref={searchInputRef}
@@ -329,209 +490,269 @@ const CustomerOrder = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onFocus={() => setIsFocused(true)}
                   onBlur={() => setIsFocused(false)}
-                  borderColor={isFocused ? "green.500" : "gray.300"}
+                  borderColor={isFocused ? "blue.500" : "gray.300"}
                   _focus={{
-                    borderColor: "green.500",
-                    boxShadow: "0 0 0 1px green.500",
+                    borderColor: "blue.500",
+                    boxShadow: "0 0 0 1px blue.500",
                   }}
+                  placeholder="Search here"
                 />
               </InputGroup>
             </FormControl>
-            <Button colorScheme="blue" mr={4} onClick={handleSearch}>Search</Button>
-            <Button variant="outline" onClick={handleClear}>Clear</Button>
+            <Button colorScheme="blue" onClick={handleSearch}>
+              Search
+            </Button>
+            <Button variant="outline" onClick={handleClear}>
+              Clear
+            </Button>
           </Flex>
         </Flex>
 
-        {/* Wrapping Table inside Box to enable horizontal scrolling */}
-        <Box overflowX="auto">
-          <Table variant="simple" borderRadius="10px" overflow="hidden">
-            <Thead bg="gray.100" height="60px">
-              <Tr>
-                <Th color="gray.400">Customer Number</Th>
-                <Th color="gray.400">Customer</Th>
-                <Th color="gray.400">Buyer</Th>
-                <Th color="gray.400">Platform No</Th>
-                <Th color="gray.400">PO No</Th>
-                <Th color="gray.400">Purchase Date</Th>
-                <Th color="gray.400">Order Amount</Th>
-                <Th color="gray.400">Currency</Th>
-                <Th color="gray.400">Purchasing Department</Th>
-                <Th color="gray.400">Purchaser</Th>
-                <Th color="gray.400">Requisition Business Group</Th>
-                <Th color="gray.400">Delivery Status</Th>
-                <Th color="gray.400">Order Status</Th>
-                <Th color="gray.400">Acceptance Status</Th>
-                <Th color="gray.400">Statement Status</Th>
-                <Th color="gray.400">Actions</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {filteredData.map((row) => (
-                <Tr key={row.id}>
-                  <Td>{row.customerNumber}</Td>
-                  <Td>{row.customer}</Td>
-                  <Td>{row.buyer}</Td>
-                  <Td>{row.platformNo}</Td>
-                  <Td>{row.poNo}</Td>
-                  <Td>{row.purchaseDate}</Td>
-                  <Td>{row.orderAmount}</Td>
-                  <Td>{row.currency}</Td>
-                  <Td>{row.purchasingDepartment}</Td>
-                  <Td>{row.purchaser}</Td>
-                  <Td>{row.requisitionBusinessGroup}</Td>
-                  <Td>{row.deliveryStatus}</Td>
-                  <Td>{row.orderStatus}</Td>
-                  <Td>{row.acceptanceStatus}</Td>
-                  <Td>{row.statementStatus}</Td>
-                  <Td>
-                    <Tooltip label="Edit">
-                      <IconButton
-                        variant="outline"
-                        aria-label="Edit"
-                        icon={<PencilIcon />}
-                        size="xs"
-                        onClick={() => handleEditRow(row.id)}
-                      />
-                    </Tooltip>
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </Box>
-
-        <Flex justify="space-between" align="center" mt={4}>
-          <Text fontSize="sm">Page {currentPage} of 1</Text>
-          <Flex>
-            <Button size="sm" variant="outline" mr={2} isDisabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}>Previous</Button>
-            <Button size="sm" variant="outline" isDisabled>Next</Button>
+        {isLoading ? (
+          <Flex justify="center" align="center" minH="200px">
+            <Spinner size="xl" color="blue.500" />
           </Flex>
-        </Flex>
+        ) : (
+          <>
+            <Box overflowX="auto">
+              <Table variant="simple" borderRadius="10px" overflow="hidden">
+                <Thead bg="gray.100" height="60px">
+                  <Tr>
+                    <Th color="gray.400">#</Th>
+                    <Th color="gray.400">Order Number</Th>
+                    <Th color="gray.400">Material Category</Th>
+                    <Th color="gray.400">Vendor</Th>
+                    <Th color="gray.400">Invitee</Th>
+                    <Th color="gray.400">Host/Inviter Contact Info</Th>
+                    <Th color="gray.400">Sender</Th>
+                    <Th color="gray.400">Status</Th>
+                    <Th color="gray.400">Supplement Template</Th>
+                    <Th color="gray.400">Created</Th>
+                    <Th color="gray.400">Actions</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {currentItems.length > 0 ? (
+                    currentItems.map((row, index) => (
+                      <Tr key={row._id}>
+                        <Td>{indexOfFirstItem + index + 1}</Td>
+                        <Td>{row.orderNumber}</Td>
+                        <Td>{row.materialCategory}</Td>
+                        <Td>{row.vendor}</Td>
+                        <Td>{row.invitee}</Td>
+                        <Td>{row.hostInviterContactInfo}</Td>
+                        <Td>{row.sender}</Td>
+                        <Td>
+                          <Badge
+                            colorScheme={
+                              row.status === "Active"
+                                ? "green"
+                                : row.status === "Inactive"
+                                ? "red"
+                                : "yellow"
+                            }
+                          >
+                            {row.status}
+                          </Badge>
+                        </Td>
+                        <Td>{row.supplementTemplate}</Td>
+                        <Td>{formatDate(row.createTime)}</Td>
+                        <Td>
+                          <Flex gap={2}>
+                            <Tooltip label="Edit">
+                              <IconButton
+                                variant="outline"
+                                aria-label="Edit"
+                                icon={<PencilIcon style={{ height: "20px", width: "20px" }} />}
+                                size="sm"
+                                onClick={() => handleEditRow(row._id)}
+                              />
+                            </Tooltip>
+                            <Tooltip label="Delete">
+                              <IconButton
+                                variant="outline"
+                                colorScheme="red"
+                                aria-label="Delete"
+                                icon={<TrashIcon style={{ height: "20px", width: "20px" }} />}
+                                size="sm"
+                                onClick={() => handleDeleteRow(row._id)}
+                              />
+                            </Tooltip>
+                          </Flex>
+                        </Td>
+                      </Tr>
+                    ))
+                  ) : (
+                    <Tr>
+                      <Td colSpan={11} textAlign="center" py={10}>
+                        No records found. Try a different search or add a new record.
+                      </Td>
+                    </Tr>
+                  )}
+                </Tbody>
+              </Table>
+            </Box>
+
+            <Flex justify="space-between" align="center" mt={4}>
+              <Text fontSize="sm">
+                Page {currentPage} of {totalPages} ({filteredData.length} records)
+              </Text>
+              <Flex>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  mr={2}
+                  isDisabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  isDisabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                >
+                  Next
+                </Button>
+              </Flex>
+            </Flex>
+          </>
+        )}
       </Flex>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+      {/* Add/Edit Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="xl">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>{selectedRowId ? "Edit Row" : "Add New Row"}</ModalHeader>
+          <ModalHeader>{selectedRowId ? "Edit Record" : "Add New Record"}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Customer Number</FormLabel>
-              <Input
-                value={newRow.customerNumber}
-                onChange={(e) => setNewRow({ ...newRow, customerNumber: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Customer</FormLabel>
-              <Input
-                value={newRow.customer}
-                onChange={(e) => setNewRow({ ...newRow, customer: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Buyer</FormLabel>
-              <Input
-                value={newRow.buyer}
-                onChange={(e) => setNewRow({ ...newRow, buyer: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Platform No</FormLabel>
-              <Input
-                value={newRow.platformNo}
-                onChange={(e) => setNewRow({ ...newRow, platformNo: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>PO No</FormLabel>
-              <Input
-                value={newRow.poNo}
-                onChange={(e) => setNewRow({ ...newRow, poNo: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Purchase Date</FormLabel>
-              <Input
-                type="date"
-                value={newRow.purchaseDate}
-                onChange={(e) => setNewRow({ ...newRow, purchaseDate: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Order Amount</FormLabel>
-              <Input
-                value={newRow.orderAmount}
-                onChange={(e) => setNewRow({ ...newRow, orderAmount: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Currency</FormLabel>
-              <Input
-                value={newRow.currency}
-                onChange={(e) => setNewRow({ ...newRow, currency: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Purchasing Department</FormLabel>
-              <Input
-                value={newRow.purchasingDepartment}
-                onChange={(e) => setNewRow({ ...newRow, purchasingDepartment: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Purchaser</FormLabel>
-              <Input
-                value={newRow.purchaser}
-                onChange={(e) => setNewRow({ ...newRow, purchaser: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Requisition Business Group</FormLabel>
-              <Input
-                value={newRow.requisitionBusinessGroup}
-                onChange={(e) => setNewRow({ ...newRow, requisitionBusinessGroup: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Delivery Status</FormLabel>
-              <Input
-                value={newRow.deliveryStatus}
-                onChange={(e) => setNewRow({ ...newRow, deliveryStatus: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Order Status</FormLabel>
-              <Input
-                value={newRow.orderStatus}
-                onChange={(e) => setNewRow({ ...newRow, orderStatus: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Acceptance Status</FormLabel>
-              <Input
-                value={newRow.acceptanceStatus}
-                onChange={(e) => setNewRow({ ...newRow, acceptanceStatus: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Statement Status</FormLabel>
-              <Input
-                value={newRow.statementStatus}
-                onChange={(e) => setNewRow({ ...newRow, statementStatus: e.target.value })}
-              />
-            </FormControl>
+            <Flex direction="column" gap={4}>
+              <Flex gap={4} flexWrap="wrap">
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Order Number</FormLabel>
+                  <Input
+                    value={newRow.orderNumber}
+                    onChange={(e) => setNewRow({ ...newRow, orderNumber: e.target.value })}
+                  />
+                </FormControl>
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Material Category</FormLabel>
+                  <Input
+                    value={newRow.materialCategory}
+                    onChange={(e) => setNewRow({ ...newRow, materialCategory: e.target.value })}
+                  />
+                </FormControl>
+              </Flex>
+
+              <Flex gap={4} flexWrap="wrap">
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Vendor</FormLabel>
+                  <Input
+                    value={newRow.vendor}
+                    onChange={(e) => setNewRow({ ...newRow, vendor: e.target.value })}
+                  />
+                </FormControl>
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Invitee</FormLabel>
+                  <Input
+                    value={newRow.invitee}
+                    onChange={(e) => setNewRow({ ...newRow, invitee: e.target.value })}
+                  />
+                </FormControl>
+              </Flex>
+
+              <FormControl>
+                <FormLabel>Host/Inviter Contact Information</FormLabel>
+                <Input
+                  value={newRow.hostInviterContactInfo}
+                  onChange={(e) => setNewRow({ ...newRow, hostInviterContactInfo: e.target.value })}
+                />
+              </FormControl>
+
+              <Flex gap={4} flexWrap="wrap">
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Sender</FormLabel>
+                  <Input
+                    value={newRow.sender}
+                    onChange={(e) => setNewRow({ ...newRow, sender: e.target.value })}
+                  />
+                </FormControl>
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Status</FormLabel>
+                  <Select
+                    value={newRow.status}
+                    onChange={(e) => setNewRow({ ...newRow, status: e.target.value })}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Pending">Pending</option>
+                  </Select>
+                </FormControl>
+              </Flex>
+
+              <Flex gap={4} flexWrap="wrap">
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Supplement Template</FormLabel>
+                  <Input
+                    value={newRow.supplementTemplate}
+                    onChange={(e) => setNewRow({ ...newRow, supplementTemplate: e.target.value })}
+                  />
+                </FormControl>
+                <FormControl width={{ base: "100%", md: "48%" }}>
+                  <FormLabel>Monitored</FormLabel>
+                  <Select
+                    value={newRow.isMonitored.toString()}
+                    onChange={(e) => setNewRow({ ...newRow, isMonitored: e.target.value === "true" })}
+                  >
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </Select>
+                </FormControl>
+              </Flex>
+            </Flex>
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="blue" mr={3} onClick={handleSaveRow}>
               {selectedRowId ? "Update" : "Add"}
             </Button>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteAlertOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={() => setIsDeleteAlertOpen(false)}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Record
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete this record? This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={() => setIsDeleteAlertOpen(false)}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmDelete} ml={3}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };
 
-export default CustomerOrder;
+export default CustomerDeliveryNotice;

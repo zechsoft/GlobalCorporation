@@ -23,9 +23,16 @@ import {
   Alert,
   AlertIcon,
   useToast,
-  Heading
+  IconButton,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure
 } from "@chakra-ui/react";
-import { InfoIcon, PhoneIcon, EmailIcon, SearchIcon, DownloadIcon } from "@chakra-ui/icons";
+import { InfoIcon, PhoneIcon, EmailIcon, SearchIcon, DownloadIcon, DeleteIcon } from "@chakra-ui/icons";
 
 // Status badge styling helper
 const getStatusBadge = (status) => {
@@ -80,8 +87,11 @@ const SupplierInformationTable = ({
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterDocStatus, setFilterDocStatus] = useState("All");
   const [currentUser, setCurrentUser] = useState(null);
+  const [supplierToDelete, setSupplierToDelete] = useState(null);
   
   const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const cancelRef = React.useRef();
 
   // Fetch current user data from local/session storage
   useEffect(() => {
@@ -133,44 +143,80 @@ const SupplierInformationTable = ({
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       results = results.filter(supplier => 
-        supplier.customerNumber.toLowerCase().includes(term) ||
-        supplier.customerName.toLowerCase().includes(term) ||
-        supplier.buyer.toLowerCase().includes(term) ||
-        supplier.invitee.toLowerCase().includes(term)
+        (supplier.supplierNumber || supplier.customerNumber || "").toString().toLowerCase().includes(term) ||
+        (supplier.supplier || supplier.Customer || supplier.customerName || "").toLowerCase().includes(term) ||
+        (supplier.buyer || "").toLowerCase().includes(term) ||
+        (supplier.invitee || supplier.Invite || "").toLowerCase().includes(term)
       );
     }
     
     // Apply status filter
     if (filterStatus !== "All") {
-      results = results.filter(supplier => supplier.status === filterStatus);
+      results = results.filter(supplier => (supplier.status || supplier.Status) === filterStatus);
     }
     
     // Apply document status filter
     if (filterDocStatus !== "All") {
-      results = results.filter(supplier => supplier.documentStatus === filterDocStatus);
+      results = results.filter(supplier => (supplier.documentStatus || supplier.DocumentStatus) === filterDocStatus);
     }
     
     setFilteredSuppliers(results);
   }, [searchTerm, filterStatus, filterDocStatus, suppliers]);
 
+  // Handle delete row
+  const handleDeleteClick = (supplier) => {
+    setSupplierToDelete(supplier);
+    onOpen();
+  };
+
+  const confirmDelete = async () => {
+    try {
+      // Here we would normally make an API call to delete the supplier
+      // Since we're not changing the backend, we'll just update the UI
+      
+      setSuppliers(suppliers.filter(s => s._id !== supplierToDelete._id));
+      setFilteredSuppliers(filteredSuppliers.filter(s => s._id !== supplierToDelete._id));
+      
+      toast({
+        title: "Supplier Deleted",
+        description: `Supplier ${supplierToDelete.supplier || supplierToDelete.Customer} was successfully removed.`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to delete supplier: ${error.message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      onClose();
+      setSupplierToDelete(null);
+    }
+  };
+
   // Handle export to CSV
   const exportToCSV = () => {
     // Create CSV headers
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Customer Number,Customer Name,Buyer,Classification,Status,Document Status,Abnormal Info,Invitee,Re-auth Person,Contact Phone,Contact Email,Invitation Date\n";
+    csvContent += "Supplier Number,Supplier Name,Buyer,Classification,Status,Document Status,Abnormal Info,Invitee,Re-auth Person,Contact Info,Invitation Date\n";
     
     // Add data rows
     filteredSuppliers.forEach(row => {
-      csvContent += `${row.CustomerNumber},`;
-      csvContent += `"${row.Customer}",`;
-      csvContent += `"${row.buyer}",`;
-      csvContent += `"${row.SecondOrderClassification}",`;
-      csvContent += `${row.Status},`;
-      csvContent += `${row.DocumentStatus},`;
-      csvContent += `"${row.AbnormalInfo || ''}",`;
-      csvContent += `"${row.Invite}",`;
-      csvContent += `"${row.ReAuthPerson}",`;
-      csvContent += `${row.InvitationDate}\n`;
+      csvContent += `${row.supplierNumber || row.customerNumber || ''},`;
+      csvContent += `"${row.supplier || row.Customer || ''}",`;
+      csvContent += `"${row.buyer || ''}",`;
+      csvContent += `"${row.secondOrderClassification || row.SecondOrderClassification || ''}",`;
+      csvContent += `${row.status || row.Status || ''},`;
+      csvContent += `${row.documentStatus || row.DocumentStatus || ''},`;
+      csvContent += `"${row.abnormalInfo || row.AbnormalInfo || ''}",`;
+      csvContent += `"${row.invitee || row.Invite || ''}",`;
+      csvContent += `"${row.reAuthPerson || row.ReAuthPerson || ''}",`;
+      csvContent += `"${row.contactInfo || row.ContactInfo || ''}",`;
+      csvContent += `${row.invitationDate || row.InvitationDate || ''}\n`;
     });
     
     // Create download link
@@ -213,19 +259,16 @@ const SupplierInformationTable = ({
 
   return (
     <Box p={5} borderWidth="1px" borderRadius="lg" bg="white" boxShadow="sm">
-      <Flex justifyContent="space-between" alignItems="center" mb={5}>
-        <Heading size="md">Supplier Information</Heading>
-        <Text>Welcome, {currentUser?.email} ({currentUser?.role})</Text>
-      </Flex>
+      {/* Removed the Supplier Information heading and Welcome text */}
       
       {/* Filter controls */}
-      <HStack spacing={4} mb={5}>
+      <HStack spacing={4} mb={5} flexWrap="wrap">
         <InputGroup maxW="300px">
           <InputLeftElement pointerEvents="none">
             <SearchIcon color="gray.300" />
           </InputLeftElement>
           <Input 
-            placeholder="Search by customer, number, buyer..."
+            placeholder="Search by supplier, number, buyer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -269,13 +312,13 @@ const SupplierInformationTable = ({
         Showing {filteredSuppliers.length} of {suppliers.length} suppliers
       </Text>
       
-      {/* Table */}
+      {/* Table with horizontal scroll */}
       <Box overflowX="auto">
         <Table variant="simple" color={textColor} size="md">
           <Thead bg="gray.50">
             <Tr my=".8rem" pl="0px">
-              <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Customer Number</Th>
-              <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Customer</Th>
+              <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Supplier Number</Th>
+              <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Supplier</Th>
               <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Buyer</Th>
               <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Second-order Classification</Th>
               <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Status</Th>
@@ -285,6 +328,7 @@ const SupplierInformationTable = ({
               <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Re-auth Person</Th>
               <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Contact Info</Th>
               <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Invitation Date</Th>
+              <Th pl="35px" pr="35px" borderColor={borderColor} color="gray.600" fontWeight="bold">Actions</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -292,55 +336,92 @@ const SupplierInformationTable = ({
               filteredSuppliers.map((row) => (
                 <Tr key={row._id} _hover={{ bg: "gray.50" }}>
                   <Td pl="35px" pr="35px" borderColor={borderColor}>
-                    <Text fontWeight="medium">{row.customerNumber}</Text>
+                    <Text fontWeight="medium">{row.supplierNumber || row.customerNumber}</Text>
                   </Td>
-                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.Customer}</Td>
+                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.supplier || row.Customer}</Td>
                   <Td pl="35px" pr="35px" borderColor={borderColor}>{row.buyer}</Td>
-                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.SecondOrderClassification}</Td>
+                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.secondOrderClassification || row.SecondOrderClassification}</Td>
                   <Td pl="35px" pr="35px" borderColor={borderColor}>
-                    {getStatusBadge(row.Status)}
+                    {getStatusBadge(row.status || row.Status)}
                   </Td>
                   <Td pl="35px" pr="35px" borderColor={borderColor}>
-                    {getDocumentStatusBadge(row.DocumentStatus)}
+                    {getDocumentStatusBadge(row.documentStatus || row.DocumentStatus)}
                   </Td>
                   <Td pl="35px" pr="35px" borderColor={borderColor}>
-                    {row.AbnormalInfo ? (
-                      <Tooltip label={row.AbnormalInfo} placement="top">
+                    {(row.abnormalInfo || row.AbnormalInfo) ? (
+                      <Tooltip label={row.abnormalInfo || row.AbnormalInfo} placement="top">
                         <Flex alignItems="center">
                           <Icon as={InfoIcon} color="red.500" mr="2" />
-                          <Text noOfLines={1}>{row.AbnormalInfo}</Text>
+                          <Text noOfLines={1}>{row.abnormalInfo || row.AbnormalInfo}</Text>
                         </Flex>
                       </Tooltip>
                     ) : (
                       <Text color="gray.400">None</Text>
                     )}
                   </Td>
-                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.Invite}</Td>
-                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.ReAuthPerson}</Td>
-                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.ContactInfo}</Td>
-                    {/* <Tooltip label={`${row.contactInfo.phone} | ${row.contactInfo.email}`} placement="top">
-                      <Flex>
-                        <Icon as={PhoneIcon} color="blue.500" mr="2" />
-                        <Icon as={EmailIcon} color="blue.500" />
-                      </Flex>
-                    </Tooltip> */}
+                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.invitee || row.Invite}</Td>
+                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.reAuthPerson || row.ReAuthPerson}</Td>
+                  <Td pl="35px" pr="35px" borderColor={borderColor}>{row.contactInfo || row.ContactInfo}</Td>
                   <Td pl="35px" pr="35px" borderColor={borderColor}>
-                    {new Date(row.InvitationDate).toLocaleDateString()}
+                    {row.invitationDate || row.InvitationDate ? 
+                      new Date(row.invitationDate || row.InvitationDate).toLocaleDateString() : 
+                      ""}
+                  </Td>
+                  <Td pl="35px" pr="35px" borderColor={borderColor}>
+                    <Tooltip label="Delete Supplier" placement="top">
+                      <IconButton
+                        aria-label="Delete supplier"
+                        icon={<DeleteIcon />}
+                        colorScheme="red"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteClick(row)}
+                      />
+                    </Tooltip>
                   </Td>
                 </Tr>
               ))
             ) : (
               <Tr>
-                <Td colSpan={11} textAlign="center" py={4}>
-                  No supplier data matching current filters
+                <Td colSpan={12} textAlign="center" py={6}>
+                  <Text fontSize="md">No supplier data matching current filters</Text>
                 </Td>
               </Tr>
             )}
           </Tbody>
         </Table>
       </Box>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Supplier
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete supplier {supplierToDelete?.supplier || supplierToDelete?.Customer}? 
+              This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmDelete} ml={3}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };
 
-export default SupplierInformationTable; 
+export default SupplierInformationTable;

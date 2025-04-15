@@ -28,9 +28,17 @@ import {
   ModalCloseButton,
   FormControl,
   FormLabel,
+  useToast,
+  HStack,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from "@chakra-ui/react";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { PencilIcon, UserPlusIcon } from "@heroicons/react/24/solid";
+import { PencilIcon, UserPlusIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useHistory } from "react-router-dom";
 import axios from "axios";
 
@@ -42,6 +50,7 @@ const TABS = [
 
 const MaterialReplenishment = () => {
   const user = JSON.parse(localStorage.getItem("user")) ? JSON.parse(localStorage.getItem("user")) : JSON.parse(sessionStorage.getItem("user"));
+  const toast = useToast();
   const [tableData, setTableData] = useState([
     {
       id: 1,
@@ -71,11 +80,13 @@ const MaterialReplenishment = () => {
     },
   ]);
 
-  const [filteredData, setFilteredData] = useState(tableData); // New state for filtered data
+  const [filteredData, setFilteredData] = useState(tableData);
   const [searchTerm, setSearchTerm] = useState("");
   const [country, setCountry] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [rowToDelete, setRowToDelete] = useState(null);
   const [newRow, setNewRow] = useState({
     orderNumber: "",
     materialCategory: "",
@@ -92,20 +103,26 @@ const MaterialReplenishment = () => {
 
   const searchInputRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
+  const cancelRef = useRef();
 
   useEffect(() => {
-
     const fetchData = async () => {
       try {
-        const response = await axios.post("http://localhost:8000/api/material-replenishment/get-data",{"email":user.email}, {
-          withCredentials: true, // If your API requires authentication cookies
+        const response = await axios.post("http://localhost:8000/api/material-replenishment/get-data", {"email": user.email}, {
+          withCredentials: true,
         });
 
-
         setTableData(response.data);
-        setFilteredData(response.data); // Set filtered data to match initial data
+        setFilteredData(response.data);
       } catch (error) {
         console.error("Error fetching data:", error);
+        toast({
+          title: "Error fetching data",
+          description: "There was an error loading the material replenishment data.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
       }
     };
 
@@ -114,36 +131,11 @@ const MaterialReplenishment = () => {
     if (searchInputRef.current) {
       setIsFocused(searchInputRef.current === document.activeElement);
     }
-  }, [searchTerm]);
+  }, []);
 
   const handleAddRow = () => {
     setIsModalOpen(true);
     setSelectedRowId(null);
-  };
-
-  const handleEditRow = (rowId) => {
-    const selectedRow = tableData.find((row) => row.id === rowId);
-    if (selectedRow) {
-      setNewRow(selectedRow);
-      setSelectedRowId(rowId);
-      setIsModalOpen(true);
-    }
-  };
-
-  const handleSaveRow = async() => {
-    if (selectedRowId) {
-      const updatedTableData = tableData.map((row) =>
-        row.id === selectedRowId ? { ...row, ...newRow } : row
-      );
-      setTableData(updatedTableData);
-      setFilteredData(updatedTableData); // Update filteredData as well
-      setSelectedRowId(null);
-    } else {
-      const updatedRow = { ...newRow, id: tableData.length + 1 };
-      setTableData([...tableData, updatedRow]);
-      setFilteredData([...filteredData, updatedRow]); // Update filteredData as well
-    }
-    setIsModalOpen(false);
     setNewRow({
       orderNumber: "",
       materialCategory: "",
@@ -156,16 +148,127 @@ const MaterialReplenishment = () => {
       createTime: "",
       updateTime: "",
     });
+  };
 
-    try
-    {
-      const response = await axios.post("http://localhost:8000/api/material-replenishment/add-data",[newRow,{"user":user.email}],{
-        withCredentials : true
-      })
+  const handleEditRow = (rowId) => {
+    const selectedRow = tableData.find((row) => row.id === rowId);
+    if (selectedRow) {
+      setNewRow(selectedRow);
+      setSelectedRowId(rowId);
+      setIsModalOpen(true);
     }
-    catch(err)
-    {
-      console.log(err);
+  };
+
+  const handleDeleteRow = (rowId) => {
+    setRowToDelete(rowId);
+    setIsDeleteAlertOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      // Optimistically update UI first
+      const updatedTableData = tableData.filter((row) => row.id !== rowToDelete);
+      setTableData(updatedTableData);
+      setFilteredData(filteredData.filter((row) => row.id !== rowToDelete));
+      
+      // Then attempt to sync with backend
+      await axios.post(
+        "http://localhost:8000/api/material-replenishment/delete-data", 
+        { id: rowToDelete, email: user.email }, 
+        { withCredentials: true }
+      );
+      
+      toast({
+        title: "Row deleted",
+        description: "The row has been successfully deleted",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Error deleting row:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete the row. UI has been updated but the backend might not be in sync.",
+        status: "warning",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleteAlertOpen(false);
+      setRowToDelete(null);
+    }
+  };
+
+  const handleSaveRow = async () => {
+    const currentDateTime = new Date().toISOString().slice(0, -8);
+    const updatedRow = { 
+      ...newRow, 
+      updateTime: currentDateTime
+    };
+    
+    if (!selectedRowId) {
+      updatedRow.createTime = currentDateTime;
+      updatedRow.id = tableData.length > 0 ? Math.max(...tableData.map(row => row.id)) + 1 : 1;
+    }
+
+    try {
+      // Optimistically update UI first
+      if (selectedRowId) {
+        // Update existing row
+        const updatedTableData = tableData.map((row) =>
+          row.id === selectedRowId ? updatedRow : row
+        );
+        setTableData(updatedTableData);
+        setFilteredData(
+          filteredData.map((row) => (row.id === selectedRowId ? updatedRow : row))
+        );
+      } else {
+        // Add new row
+        setTableData([...tableData, updatedRow]);
+        setFilteredData([...filteredData, updatedRow]);
+      }
+
+      // Then attempt to sync with backend
+      await axios.post(
+        "http://localhost:8000/api/material-replenishment/add-data",
+        [updatedRow, { user: user.email }],
+        { withCredentials: true }
+      );
+
+      toast({
+        title: selectedRowId ? "Row updated" : "Row added",
+        description: selectedRowId 
+          ? "The row has been successfully updated" 
+          : "A new row has been successfully added",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Error saving row:", error);
+      toast({
+        title: "Error",
+        description: "Failed to sync changes with the backend. UI has been updated but the backend might not be in sync.",
+        status: "warning",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsModalOpen(false);
+      setSelectedRowId(null);
+      setNewRow({
+        orderNumber: "",
+        materialCategory: "",
+        vendor: "",
+        invitee: "",
+        hostInviterContactInfo: "",
+        sender: "",
+        status: "",
+        supplementTemplate: "",
+        createTime: "",
+        updateTime: "",
+      });
     }
   };
 
@@ -173,57 +276,55 @@ const MaterialReplenishment = () => {
   const handleViewAllClick = () => navigate.push("/admin/tables");
 
   const handleSearch = () => {
+    if (searchTerm.trim() === "") {
+      setFilteredData(tableData);
+      return;
+    }
+    
+    const lowercasedSearchTerm = searchTerm.toLowerCase();
+    
     if (country === "All") {
       // Search in all columns
       const filteredData = tableData.filter((row) =>
-        row.orderNumber.includes(searchTerm) ||
-        row.materialCategory.includes(searchTerm) ||
-        row.vendor.includes(searchTerm) ||
-        row.invitee.includes(searchTerm) ||
-        row.hostInviterContactInfo.includes(searchTerm) ||
-        row.sender.includes(searchTerm) ||
-        row.status.includes(searchTerm) ||
-        row.supplementTemplate.includes(searchTerm) ||
-        row.createTime.includes(searchTerm) ||
-        row.updateTime.includes(searchTerm)
+        Object.values(row).some(
+          value => 
+            value && 
+            typeof value === 'string' && 
+            value.toLowerCase().includes(lowercasedSearchTerm)
+        )
       );
       setFilteredData(filteredData);
     } else {
       // Search in specific column
-      const filteredData = tableData.filter((row) => {
-        switch (country) {
-          case "Order Number":
-            return row.orderNumber.includes(searchTerm);
-          case "Material Category":
-            return row.materialCategory.includes(searchTerm);
-          case "Vendor":
-            return row.vendor.includes(searchTerm);
-          case "Invitee":
-            return row.invitee.includes(searchTerm);
-          case "Host/Inviter Contact Information":
-            return row.hostInviterContactInfo.includes(searchTerm);
-          case "Sender":
-            return row.sender.includes(searchTerm);
-          case "Status":
-            return row.status.includes(searchTerm);
-          case "Supplement Template":
-            return row.supplementTemplate.includes(searchTerm);
-          case "Create Time":
-            return row.createTime.includes(searchTerm);
-          case "Update Time":
-            return row.updateTime.includes(searchTerm);
-          default:
-            return true;
-        }
-      });
-      setFilteredData(filteredData);
+      const columnMapping = {
+        "Order Number": "orderNumber",
+        "Material Category": "materialCategory",
+        "Vendor": "vendor",
+        "Invitee": "invitee",
+        "Host/Inviter Contact Information": "hostInviterContactInfo",
+        "Sender": "sender",
+        "Status": "status",
+        "Supplement Template": "supplementTemplate",
+        "Create Time": "createTime",
+        "Update Time": "updateTime"
+      };
+      
+      const columnKey = columnMapping[country];
+      if (columnKey) {
+        const filteredData = tableData.filter(
+          row => 
+            row[columnKey] && 
+            row[columnKey].toLowerCase().includes(lowercasedSearchTerm)
+        );
+        setFilteredData(filteredData);
+      }
     }
   };
 
   const handleClear = () => {
     setSearchTerm("");
     setCountry("All");
-    setFilteredData(tableData); // Reset to original data
+    setFilteredData(tableData);
   };
 
   return (
@@ -273,7 +374,7 @@ const MaterialReplenishment = () => {
                 fontSize={isFocused || searchTerm ? "xs" : "sm"}
                 transition="all 0.2s ease"
                 pointerEvents="none"
-                opacity={isFocused || searchTerm ? 0 : 1} // Set opacity to 0 when focused or has value
+                opacity={isFocused || searchTerm ? 0 : 1}
               >
                 Search here
               </FormLabel>
@@ -293,6 +394,11 @@ const MaterialReplenishment = () => {
                     borderColor: "green.500",
                     boxShadow: "0 0 0 1px green.500",
                   }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch();
+                    }
+                  }}
                 />
               </InputGroup>
             </FormControl>
@@ -301,7 +407,6 @@ const MaterialReplenishment = () => {
           </Flex>
         </Flex>
 
-        {/* Wrapping Table inside Box to enable horizontal scrolling */}
         <Box overflowX="auto">
           <Table variant="simple" borderRadius="10px" overflow="hidden">
             <Thead bg="gray.100" height="60px">
@@ -324,32 +429,50 @@ const MaterialReplenishment = () => {
               {filteredData.map((row) => (
                 <Tr key={row.id}>
                   <Td>{row.id}</Td>
-                  <Td>{row.OrderNumber}</Td>
-                  <Td>{row.MaterialCategory}</Td>
-                  <Td>{row.Vendor}</Td>
-                  <Td>{row.Invitee}</Td>
-                  <Td>{row.Host}</Td>
-                  <Td>{row.Sender}</Td>
-                  <Td>{row.Status}</Td>
-                  <Td>{row.SupplementTemplate}</Td>
-                  <Td>{row.Created}</Td>
-                  <Td>{row.updated}</Td>
+                  <Td>{row.OrderNumber || row.orderNumber}</Td>
+                  <Td>{row.MaterialCategory || row.materialCategory}</Td>
+                  <Td>{row.Vendor || row.vendor}</Td>
+                  <Td>{row.Invitee || row.invitee}</Td>
+                  <Td>{row.Host || row.hostInviterContactInfo}</Td>
+                  <Td>{row.Sender || row.sender}</Td>
+                  <Td>{row.Status || row.status}</Td>
+                  <Td>{row.SupplementTemplate || row.supplementTemplate}</Td>
+                  <Td>{row.Created || row.createTime}</Td>
+                  <Td>{row.updated || row.updateTime}</Td>
                   <Td>
-                    <Tooltip label="Edit">
-                      <IconButton
-                        variant="outline"
-                        aria-label="Edit"
-                        icon={<PencilIcon />}
-                        size="xs"
-                        onClick={() => handleEditRow(row.id)}
-                      />
-                    </Tooltip>
+                    <HStack spacing={2}>
+                      <Tooltip label="Edit">
+                        <IconButton
+                          variant="outline"
+                          aria-label="Edit"
+                          icon={<PencilIcon style={{ height: "16px", width: "16px" }} />}
+                          size="xs"
+                          onClick={() => handleEditRow(row.id)}
+                        />
+                      </Tooltip>
+                      <Tooltip label="Delete">
+                        <IconButton
+                          variant="outline"
+                          colorScheme="red"
+                          aria-label="Delete"
+                          icon={<TrashIcon style={{ height: "16px", width: "16px" }} />}
+                          size="xs"
+                          onClick={() => handleDeleteRow(row.id)}
+                        />
+                      </Tooltip>
+                    </HStack>
                   </Td>
                 </Tr>
               ))}
             </Tbody>
           </Table>
         </Box>
+
+        {filteredData.length === 0 && (
+          <Flex justify="center" align="center" my={8}>
+            <Text color="gray.500">No data found</Text>
+          </Flex>
+        )}
 
         <Flex justify="space-between" align="center" mt={4}>
           <Text fontSize="sm">Page {currentPage} of 1</Text>
@@ -360,6 +483,7 @@ const MaterialReplenishment = () => {
         </Flex>
       </Flex>
 
+      {/* Add/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
         <ModalOverlay />
         <ModalContent>
@@ -410,32 +534,21 @@ const MaterialReplenishment = () => {
             </FormControl>
             <FormControl width="100%" mt={4}>
               <FormLabel>Status</FormLabel>
-              <Input
+              <Select
                 value={newRow.status}
                 onChange={(e) => setNewRow({ ...newRow, status: e.target.value })}
-              />
+                placeholder="Select status"
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Pending">Pending</option>
+              </Select>
             </FormControl>
             <FormControl width="100%" mt={4}>
               <FormLabel>Supplement Template</FormLabel>
               <Input
                 value={newRow.supplementTemplate}
                 onChange={(e) => setNewRow({ ...newRow, supplementTemplate: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Create Time</FormLabel>
-              <Input
-                type="datetime-local"
-                value={newRow.createTime}
-                onChange={(e) => setNewRow({ ...newRow, createTime: e.target.value })}
-              />
-            </FormControl>
-            <FormControl width="100%" mt={4}>
-              <FormLabel>Update Time</FormLabel>
-              <Input
-                type="datetime-local"
-                value={newRow.updateTime}
-                onChange={(e) => setNewRow({ ...newRow, updateTime: e.target.value })}
               />
             </FormControl>
           </ModalBody>
@@ -447,6 +560,34 @@ const MaterialReplenishment = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteAlertOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={() => setIsDeleteAlertOpen(false)}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Row
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete this row? This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={() => setIsDeleteAlertOpen(false)}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmDelete} ml={3}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };

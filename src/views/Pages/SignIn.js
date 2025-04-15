@@ -719,7 +719,7 @@ export default function SignIn() {
                       <Text ml="3" fontSize="sm" color={textColor}>Keep me logged In</Text>
                     </Flex>
                     <Link
-                      href="/auth/forgot-password"
+                      onClick={() => history.push("/auth/forgot-password")}
                       fontSize="sm"
                       fontWeight="medium"
                       color={companyBlue}
